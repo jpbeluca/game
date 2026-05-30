@@ -604,6 +604,9 @@ function renderAbilities(){
 }
 function updateAbilities(){
   const t=now();
+  let need=0; for(const mm of MANAGERS){ if(mgr(mm.id)&&mm.active) need++; }
+  const barEl=document.getElementById("abilities");
+  if(barEl && barEl.children.length!==need) renderAbilities();
   for(const m of MANAGERS){
     if(!mgr(m.id)||!m.active) continue;
     const btn=$('.abtn[data-ability="'+m.id+'"]'); if(!btn) continue;
