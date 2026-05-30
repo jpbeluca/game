@@ -460,20 +460,36 @@
   let highScore = +(localStorage.getItem("craftbreaker_hi") || 0);
 
   // Paddle (oak planks)
+  const PADDLE_BASE_W = 92, PADDLE_MIN_W = 50, PADDLE_MAX_W = 152;
   const paddle = {
-    w: 92, h: 18,
-    x: BASE_W / 2 - 46,
+    w: PADDLE_BASE_W, h: 18,
+    x: BASE_W / 2 - PADDLE_BASE_W / 2,
     y: BASE_H - 70,
   };
 
-  // Ball (snowball)
-  const ball = {
-    x: BASE_W / 2, y: paddle.y - 12,
-    r: 8,
-    vx: 0, vy: 0,
-    speed: 5.2,
-    stuck: true,
+  // Balls (snowballs) — supports multi-ball
+  const BALL_R = 8;
+  const MAX_BALLS = 9;
+  let balls = [];
+  function makeBall(stuck) {
+    return {
+      x: paddle.x + paddle.w / 2, y: paddle.y - BALL_R - 2, r: BALL_R,
+      vx: 0, vy: 0, speed: 5.7 + (level - 1) * 0.45, stuck: !!stuck, dead: false,
+    };
+  }
+
+  // Power-ups / power-downs that fall from broken blocks 🎁
+  let powerups = [];
+  const POWER = {
+    multi:  { emoji: "🔵", color: "#3fa7ff", good: true,  label: "Multi-bola!" },
+    expand: { emoji: "🟩", color: "#5fd35a", good: true,  label: "Barra maior!" },
+    slow:   { emoji: "🐢", color: "#56d6c8", good: true,  label: "Bola lenta" },
+    life:   { emoji: "💗", color: "#ff6fae", good: true,  label: "+1 vida!" },
+    shrink: { emoji: "😈", color: "#e0503f", good: false, label: "Barra menor!" },
+    fast:   { emoji: "⚡", color: "#ffae34", good: false, label: "Bola veloz!" },
   };
+  // weighted pool (more shrink/fast => harder)
+  const POWER_DROPS = ["multi", "multi", "expand", "slow", "life", "shrink", "shrink", "fast", "fast"];
 
   // Bricks
   let bricks = [];
@@ -533,20 +549,87 @@
   }
 
   function resetBall() {
-    ball.stuck = true;
-    ball.x = paddle.x + paddle.w / 2;
-    ball.y = paddle.y - ball.r - 2;
-    ball.vx = 0; ball.vy = 0;
-    ball.speed = 5.2 + (level - 1) * 0.4;
+    paddle.w = PADDLE_BASE_W;
+    paddle.x = Math.min(Math.max(paddle.x, FIELD_PAD), BASE_W - FIELD_PAD - paddle.w);
+    balls = [makeBall(true)];
+    powerups = [];
   }
 
   function launchBall() {
-    if (!ball.stuck) return;
-    ball.stuck = false;
-    const angle = -Math.PI / 2 + (Math.random() * 0.5 - 0.25);
-    ball.vx = Math.cos(angle) * ball.speed;
-    ball.vy = Math.sin(angle) * ball.speed;
-    SFX.launch();
+    let launched = false;
+    for (const b of balls) {
+      if (b.stuck) {
+        b.stuck = false;
+        const angle = -Math.PI / 2 + (Math.random() * 0.5 - 0.25);
+        b.vx = Math.cos(angle) * b.speed;
+        b.vy = Math.sin(angle) * b.speed;
+        launched = true;
+      }
+    }
+    if (launched) SFX.launch();
+  }
+
+  function setBallSpeed(b, s) {
+    s = Math.max(3.6, Math.min(11.5, s));
+    const cur = Math.hypot(b.vx, b.vy) || 1;
+    b.speed = s;
+    if (!b.stuck) { b.vx = b.vx / cur * s; b.vy = b.vy / cur * s; }
+  }
+
+  // chance to drop a surprise item from a broken block
+  function maybeDropPower(x, y, tex) {
+    let chance = 0.13;
+    if (tex === "tnt") chance = 0.55;          // bombs love surprises 💣
+    else if (tex === "diamond" || tex === "gold") chance = 0.28;
+    if (Math.random() > chance) return;
+    const type = POWER_DROPS[(Math.random() * POWER_DROPS.length) | 0];
+    powerups.push({ x: x - 12, y: y - 12, w: 24, h: 24, vy: 2.3, type, caught: false });
+  }
+
+  function applyPower(type) {
+    const info = POWER[type];
+    flashMsg(info.emoji + " " + info.label, 1000);
+    if (info.good) SFX.level(); else SFX.loseLife();
+    switch (type) {
+      case "multi": {
+        const adds = [];
+        for (const b of balls) {
+          if (balls.length + adds.length >= MAX_BALLS) break;
+          if (b.stuck) { // launch the stuck ball so the split is fun
+            b.stuck = false;
+            const a = -Math.PI / 2 + (Math.random() * 0.5 - 0.25);
+            b.vx = Math.cos(a) * b.speed; b.vy = Math.sin(a) * b.speed;
+          }
+          const nb = makeBall(false);
+          nb.x = b.x; nb.y = b.y; nb.speed = b.speed;
+          const ang = Math.atan2(b.vy, b.vx) + (Math.random() < 0.5 ? 0.6 : -0.6);
+          nb.vx = Math.cos(ang) * b.speed; nb.vy = Math.sin(ang) * b.speed;
+          adds.push(nb);
+        }
+        balls = balls.concat(adds).slice(0, MAX_BALLS);
+        break;
+      }
+      case "expand": paddle.w = Math.min(PADDLE_MAX_W, paddle.w * 1.35); break;
+      case "shrink": paddle.w = Math.max(PADDLE_MIN_W, paddle.w * 0.68); break;
+      case "fast": for (const b of balls) setBallSpeed(b, b.speed * 1.25); break;
+      case "slow": for (const b of balls) setBallSpeed(b, b.speed * 0.8); break;
+      case "life": lives = Math.min(6, lives + 1); break;
+    }
+    // keep paddle inside the field after a resize
+    if (paddle.x + paddle.w > BASE_W - FIELD_PAD) paddle.x = BASE_W - FIELD_PAD - paddle.w;
+    if (paddle.x < FIELD_PAD) paddle.x = FIELD_PAD;
+  }
+
+  function updatePowerups() {
+    for (const p of powerups) {
+      p.y += p.vy;
+      if (p.y + p.h >= paddle.y && p.y <= paddle.y + paddle.h &&
+          p.x + p.w >= paddle.x && p.x <= paddle.x + paddle.w) {
+        p.caught = true;
+        applyPower(p.type);
+      }
+    }
+    powerups = powerups.filter((p) => !p.caught && p.y < BASE_H + 30);
   }
 
   function startGame() {
@@ -644,7 +727,10 @@
         👆 <b>Celular:</b> arraste o dedo para mover a tábua.<br>
         🖱️ <b>PC:</b> mouse ou setas ← → ; espaço para soltar a bola.<br>
         💣 <b>TNT</b> explode os blocos vizinhos!<br>
-        💎 Diamante e ouro valem mais pontos.
+        💎 Diamante e ouro valem mais pontos.<br>
+        🎁 <b>Itens caem dos blocos</b> — pegue com a barra:<br>
+        🔵 multi-bola · 🟩 barra maior · 🐢 bola lenta · 💗 vida<br>
+        😈 barra menor · ⚡ bola veloz <i>(cuidado!)</i>
       </div>
       <button class="btn" id="btnStart">▶ Jogar</button>
       <div class="hint">Recorde atual: ${highScore} pts</div>
@@ -680,7 +766,7 @@
     paddle.x = cx - paddle.w / 2;
     if (paddle.x < FIELD_PAD) paddle.x = FIELD_PAD;
     if (paddle.x + paddle.w > BASE_W - FIELD_PAD) paddle.x = BASE_W - FIELD_PAD - paddle.w;
-    if (ball.stuck) ball.x = paddle.x + paddle.w / 2;
+    for (const b of balls) if (b.stuck) b.x = paddle.x + paddle.w / 2;
   }
 
   // Pointer events cover touch + mouse
@@ -692,7 +778,7 @@
     if (inMuteBox(cx, cy)) { SFX.toggleMute(); SFX.button(); return; }
     pointerActive = true;
     movePaddleTo(cx);
-    if (state === STATE.PLAYING && ball.stuck) launchBall();
+    if (state === STATE.PLAYING) launchBall();
   }, { passive: false });
 
   canvas.addEventListener("pointermove", (e) => {
@@ -749,6 +835,7 @@
       b.alive = false;
       score += b.pts;
       spawnParticles(b.x + b.w / 2, b.y + b.h / 2, blockColorHint(b.tex), 10);
+      maybeDropPower(b.x + b.w / 2, b.y + b.h / 2, b.tex);
       if (b.explosive) explode(b);
       else if (!fromExplosion) SFX.brk();
     } else if (!fromExplosion) {
@@ -786,57 +873,62 @@
 
     if (state !== STATE.PLAYING) { updateParticles(); return; }
 
-    if (ball.stuck) { ball.x = paddle.x + paddle.w / 2; updateParticles(); return; }
+    for (const ball of balls) {
+      if (ball.stuck) { ball.x = paddle.x + paddle.w / 2; continue; }
 
-    // move ball in small steps to avoid tunneling at high speed
-    const steps = Math.ceil(Math.hypot(ball.vx, ball.vy) / 4);
-    for (let s = 0; s < steps; s++) {
-      ball.x += ball.vx / steps;
-      ball.y += ball.vy / steps;
+      // move ball in small steps to avoid tunneling at high speed
+      const steps = Math.ceil(Math.hypot(ball.vx, ball.vy) / 4);
+      for (let s = 0; s < steps; s++) {
+        ball.x += ball.vx / steps;
+        ball.y += ball.vy / steps;
 
-      // walls
-      if (ball.x - ball.r < FIELD_PAD) { ball.x = FIELD_PAD + ball.r; ball.vx = Math.abs(ball.vx); SFX.wall(); }
-      if (ball.x + ball.r > BASE_W - FIELD_PAD) { ball.x = BASE_W - FIELD_PAD - ball.r; ball.vx = -Math.abs(ball.vx); SFX.wall(); }
-      if (ball.y - ball.r < FIELD_TOP - 40) { ball.y = FIELD_TOP - 40 + ball.r; ball.vy = Math.abs(ball.vy); SFX.wall(); }
+        // walls
+        if (ball.x - ball.r < FIELD_PAD) { ball.x = FIELD_PAD + ball.r; ball.vx = Math.abs(ball.vx); SFX.wall(); }
+        if (ball.x + ball.r > BASE_W - FIELD_PAD) { ball.x = BASE_W - FIELD_PAD - ball.r; ball.vx = -Math.abs(ball.vx); SFX.wall(); }
+        if (ball.y - ball.r < FIELD_TOP - 40) { ball.y = FIELD_TOP - 40 + ball.r; ball.vy = Math.abs(ball.vy); SFX.wall(); }
 
-      // paddle
-      if (ball.vy > 0 &&
-          ball.y + ball.r >= paddle.y &&
-          ball.y + ball.r <= paddle.y + paddle.h + 6 &&
-          ball.x >= paddle.x - ball.r &&
-          ball.x <= paddle.x + paddle.w + ball.r) {
-        ball.y = paddle.y - ball.r;
-        // bounce angle based on hit position
-        const hit = (ball.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2); // -1..1
-        const maxAngle = Math.PI * 0.42;
-        const angle = -Math.PI / 2 + hit * maxAngle;
-        ball.vx = Math.cos(angle) * ball.speed;
-        ball.vy = Math.sin(angle) * ball.speed;
-        SFX.paddle();
-      }
-
-      // bricks
-      for (const b of bricks) {
-        if (!b.alive) continue;
-        if (ball.x + ball.r > b.x && ball.x - ball.r < b.x + b.w &&
-            ball.y + ball.r > b.y && ball.y - ball.r < b.y + b.h) {
-          // determine bounce side
-          const overlapLeft = (ball.x + ball.r) - b.x;
-          const overlapRight = (b.x + b.w) - (ball.x - ball.r);
-          const overlapTop = (ball.y + ball.r) - b.y;
-          const overlapBottom = (b.y + b.h) - (ball.y - ball.r);
-          const minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
-          if (minOverlap === overlapLeft || minOverlap === overlapRight) ball.vx = -ball.vx;
-          else ball.vy = -ball.vy;
-          damageBrick(b, false);
-          break;
+        // paddle
+        if (ball.vy > 0 &&
+            ball.y + ball.r >= paddle.y &&
+            ball.y + ball.r <= paddle.y + paddle.h + 6 &&
+            ball.x >= paddle.x - ball.r &&
+            ball.x <= paddle.x + paddle.w + ball.r) {
+          ball.y = paddle.y - ball.r;
+          const hit = (ball.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2); // -1..1
+          const maxAngle = Math.PI * 0.42;
+          const angle = -Math.PI / 2 + hit * maxAngle;
+          ball.vx = Math.cos(angle) * ball.speed;
+          ball.vy = Math.sin(angle) * ball.speed;
+          SFX.paddle();
         }
-      }
 
-      // fell off bottom
-      if (ball.y - ball.r > BASE_H) { loseLife(); break; }
+        // bricks
+        for (const b of bricks) {
+          if (!b.alive) continue;
+          if (ball.x + ball.r > b.x && ball.x - ball.r < b.x + b.w &&
+              ball.y + ball.r > b.y && ball.y - ball.r < b.y + b.h) {
+            const overlapLeft = (ball.x + ball.r) - b.x;
+            const overlapRight = (b.x + b.w) - (ball.x - ball.r);
+            const overlapTop = (ball.y + ball.r) - b.y;
+            const overlapBottom = (b.y + b.h) - (ball.y - ball.r);
+            const minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
+            if (minOverlap === overlapLeft || minOverlap === overlapRight) ball.vx = -ball.vx;
+            else ball.vy = -ball.vy;
+            damageBrick(b, false);
+            break;
+          }
+        }
+
+        // fell off bottom
+        if (ball.y - ball.r > BASE_H) { ball.dead = true; break; }
+      }
     }
 
+    // remove fallen balls; only lose a life when ALL balls are gone
+    balls = balls.filter((b) => !b.dead);
+    if (balls.length === 0) loseLife();
+
+    updatePowerups();
     updateParticles();
 
     if (state === STATE.PLAYING && aliveCount() === 0) levelClear();
@@ -935,25 +1027,44 @@
     ctx.restore();
   }
 
-  function drawBall() {
-    // snowball: white with light shading
-    ctx.beginPath();
-    ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
-    ctx.fillStyle = "#f4f8ff";
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(ball.x - 2, ball.y - 2, ball.r * 0.5, 0, Math.PI * 2);
-    ctx.fillStyle = "#ffffff";
-    ctx.fill();
-    ctx.strokeStyle = "#b9c6dd";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
-    ctx.stroke();
-    // speckles
-    ctx.fillStyle = "#d8e2f0";
-    ctx.fillRect(ball.x + 1, ball.y + 2, 1.5, 1.5);
-    ctx.fillRect(ball.x - 3, ball.y + 1, 1.5, 1.5);
+  function drawBalls() {
+    for (const ball of balls) {
+      // snowball: white with light shading
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+      ctx.fillStyle = "#f4f8ff";
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(ball.x - 2, ball.y - 2, ball.r * 0.5, 0, Math.PI * 2);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
+      ctx.strokeStyle = "#b9c6dd";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+      ctx.stroke();
+      // speckles
+      ctx.fillStyle = "#d8e2f0";
+      ctx.fillRect(ball.x + 1, ball.y + 2, 1.5, 1.5);
+      ctx.fillRect(ball.x - 3, ball.y + 1, 1.5, 1.5);
+    }
+  }
+
+  function drawPowerups() {
+    for (const p of powerups) {
+      const info = POWER[p.type];
+      // blocky token
+      ctx.fillStyle = info.color;
+      ctx.fillRect(p.x, p.y, p.w, p.h);
+      ctx.strokeStyle = "rgba(0,0,0,0.4)"; ctx.lineWidth = 2;
+      ctx.strokeRect(p.x + 1, p.y + 1, p.w - 2, p.h - 2);
+      ctx.strokeStyle = "rgba(255,255,255,0.5)";
+      ctx.beginPath();
+      ctx.moveTo(p.x + 2, p.y + p.h - 2); ctx.lineTo(p.x + 2, p.y + 2); ctx.lineTo(p.x + p.w - 2, p.y + 2);
+      ctx.stroke();
+      ctx.font = "15px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(info.emoji, p.x + p.w / 2, p.y + p.h / 2 + 1);
+    }
   }
 
   function drawParticles() {
@@ -1003,7 +1114,7 @@
     }
 
     // "tap to launch" hint
-    if (state === STATE.PLAYING && ball.stuck) {
+    if (state === STATE.PLAYING && balls.some((b) => b.stuck)) {
       ctx.textAlign = "center";
       ctx.font = "bold 15px 'Courier New', monospace";
       ctx.fillStyle = "rgba(255,255,255,0.9)";
@@ -1025,8 +1136,9 @@
     }
 
     drawParticles();
+    drawPowerups();
     drawPaddle();
-    drawBall();
+    drawBalls();
     drawHUD();
   }
 
