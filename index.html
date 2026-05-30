@@ -373,39 +373,56 @@
       src.start(t0);
     }
 
-    // Procedural "fart" (pum): a wobbling low sawtooth through a lowpass,
-    // with a little random sputter so each one sounds organic. 💨
+    // Procedural "fart" (pum). The trick that makes it read clearly as a
+    // fart is the "brap" flutter: a fast square LFO chopping the amplitude,
+    // plus a resonant lowpass for the wet "blaat" and a pitch drop. 💨
     function fart(base, dur, vol, delay, rising) {
       if (!ctx) return;
       const t0 = ctx.currentTime + (delay || 0);
+
+      // --- main tone: low sawtooth that drops in pitch ---
       const o = ctx.createOscillator();
       o.type = "sawtooth";
-
-      // build a frequency curve: drifts down (or up) with a brap-y wobble
-      const steps = Math.max(10, Math.floor(dur * 60));
+      const steps = Math.max(14, Math.floor(dur * 80));
       const curve = new Float32Array(steps);
-      const wobRate = 5 + base / 22;
       for (let i = 0; i < steps; i++) {
         const p = i / (steps - 1);
-        const drift = rising ? (1 + 0.6 * p) : (1 - 0.45 * p);
-        const wob = Math.sin(p * Math.PI * 2 * wobRate) * base * 0.3;
-        const sputter = (Math.random() - 0.5) * base * 0.18;
-        curve[i] = Math.max(28, base * drift + wob + sputter);
+        const drift = rising ? (1 + 0.85 * p) : (1 - 0.55 * p);
+        const wob = Math.sin(p * Math.PI * 2 * 3) * base * 0.10;
+        curve[i] = Math.max(30, base * drift + wob);
       }
       o.frequency.setValueCurveAtTime(curve, t0, dur);
 
+      // --- brap flutter: square LFO modulating amplitude ---
+      const lfo = ctx.createOscillator();
+      lfo.type = "square";
+      const f0 = rising ? 13 : 24;
+      const f1 = rising ? 28 : 10;
+      lfo.frequency.setValueAtTime(f0, t0);
+      lfo.frequency.linearRampToValueAtTime(f1, t0 + dur);
+      const lfoDepth = ctx.createGain();
+      lfoDepth.gain.value = 0.55;
+      const am = ctx.createGain();
+      am.gain.value = 0.5; // center; LFO swings it 0..1 => choppy brap
+      lfo.connect(lfoDepth); lfoDepth.connect(am.gain);
+
+      // --- resonant lowpass for the wet "blaat" ---
       const lp = ctx.createBiquadFilter();
       lp.type = "lowpass";
-      lp.frequency.setValueAtTime(1100, t0);
-      lp.frequency.exponentialRampToValueAtTime(320, t0 + dur);
+      lp.frequency.setValueAtTime(1700, t0);
+      lp.frequency.exponentialRampToValueAtTime(360, t0 + dur);
+      lp.Q.value = 7;
 
-      const g = ctx.createGain();
-      g.gain.setValueAtTime(0.0001, t0);
-      g.gain.exponentialRampToValueAtTime(vol, t0 + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      // --- overall envelope ---
+      const env = ctx.createGain();
+      env.gain.setValueAtTime(0.0001, t0);
+      env.gain.exponentialRampToValueAtTime(vol, t0 + 0.03);
+      env.gain.setValueAtTime(vol, t0 + dur * 0.55);
+      env.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
 
-      o.connect(lp); lp.connect(g); g.connect(master);
-      o.start(t0); o.stop(t0 + dur + 0.03);
+      o.connect(lp); lp.connect(am); am.connect(env); env.connect(master);
+      o.start(t0); o.stop(t0 + dur + 0.05);
+      lfo.start(t0); lfo.stop(t0 + dur + 0.05);
     }
 
     const api = {
@@ -418,17 +435,17 @@
         return muted;
       },
       // every event is now a pum 💨
-      paddle() { if (!prep()) return; fart(150, 0.16, 0.5); },
-      wall()   { if (!prep()) return; fart(240, 0.07, 0.3); },
-      hit()    { if (!prep()) return; fart(190, 0.10, 0.38); },
-      brk()    { if (!prep()) return; fart(115, 0.22, 0.55); },
-      explode(){ if (!prep()) return; fart(65, 0.6, 0.8); noise(ctx.currentTime, 0.3, 0.2, 700); },
-      launch() { if (!prep()) return; fart(180, 0.28, 0.5, 0, true); },   // pum subindo
-      loseLife(){ if (!prep()) return; fart(170, 0.55, 0.55); },          // pum murchando
-      level()  { if (!prep()) return; fart(150, 0.14, 0.5); fart(220, 0.16, 0.5, 0.18, true); },
-      win()    { if (!prep()) return; [150, 200, 130, 260, 90].forEach((b, i) => fart(b, 0.22, 0.55, i * 0.2, i % 2 === 1)); },
-      over()   { if (!prep()) return; fart(95, 0.85, 0.6); },             // pum longo e triste
-      button() { if (!prep()) return; fart(230, 0.09, 0.35); },
+      paddle() { if (!prep()) return; fart(140, 0.22, 0.6); },
+      wall()   { if (!prep()) return; fart(210, 0.14, 0.4); },
+      hit()    { if (!prep()) return; fart(175, 0.18, 0.45); },
+      brk()    { if (!prep()) return; fart(110, 0.3, 0.65); },
+      explode(){ if (!prep()) return; fart(60, 0.75, 0.9); noise(ctx.currentTime, 0.25, 0.18, 600); },
+      launch() { if (!prep()) return; fart(170, 0.32, 0.55, 0, true); },  // pum subindo
+      loseLife(){ if (!prep()) return; fart(150, 0.7, 0.6); },            // pum murchando
+      level()  { if (!prep()) return; fart(140, 0.22, 0.6); fart(200, 0.26, 0.6, 0.24, true); },
+      win()    { if (!prep()) return; [140, 190, 120, 240, 85].forEach((b, i) => fart(b, 0.3, 0.6, i * 0.26, i % 2 === 1)); },
+      over()   { if (!prep()) return; fart(90, 1.0, 0.65); },             // pum longo e triste
+      button() { if (!prep()) return; fart(220, 0.16, 0.4); },
     };
     return api;
   })();
