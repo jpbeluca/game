@@ -100,6 +100,15 @@
   #digbtn:active{transform:translateY(1px);}
   #digbtn.cant{filter:grayscale(.6) brightness(.85);}
 
+  #abilities{flex:0 0 auto;display:flex;gap:6px;padding:6px 8px;overflow-x:auto;background:#241d12dd;border-bottom:2px solid var(--line);-webkit-overflow-scrolling:touch;}
+  #abilities:empty{display:none;}
+  .abtn{position:relative;flex:0 0 auto;width:64px;height:52px;border-radius:10px;background:#3a2f1c;border:2px solid #6b5630;
+    color:var(--txt);font-size:9.5px;font-weight:bold;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;overflow:hidden;cursor:pointer;text-align:center;line-height:1.05;}
+  .abtn .em{font-size:18px;}
+  .abtn.ready{border-color:var(--green);box-shadow:0 0 6px #6fcf5766;}
+  .abtn.active{border-color:var(--gold);box-shadow:0 0 8px var(--gold);}
+  .abtn .cdfill{position:absolute;left:0;right:0;bottom:0;height:0;background:#000000bb;pointer-events:none;}
+  .abtn .cdtxt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:#fff;text-shadow:1px 1px 0 #000;pointer-events:none;}
   #turbo{position:absolute;left:50%;top:8px;transform:translateX(-50%);background:#000000aa;border:1px solid var(--gold);
     color:var(--gold);font-weight:900;border-radius:20px;padding:4px 14px;font-size:13px;pointer-events:none;opacity:0;transition:opacity .2s;z-index:5;}
   #turbo.on{opacity:1;}
@@ -155,6 +164,7 @@
     <div class="topbtn" data-open="map"><span class="ic">🗺️</span>Mapa</div>
     <div class="topbtn" data-open="mgr"><span class="ic">👔</span>Time</div>
   </div>
+  <div id="abilities"></div>
   <div id="turbo">⏩ TURBO</div>
   <div id="mine"></div>
 </div>
@@ -284,6 +294,17 @@ const MANAGERS = [
    desc:"Compra sozinho a melhoria mais barata que você puder pagar.", flag:"auto"},
 ];
 
+// active abilities (click to use) — each manager has a unique one
+const ACTIVE = {
+  foreman:{key:"mine", mult:4, dur:12, cd:60, label:"💥 Frenesi",        desc:"Mineração ×4 por 12s"},
+  lifter: {key:"elev", mult:6, dur:12, cd:60, label:"🛗 Turbo-Elevador", desc:"Elevador ×6 por 12s"},
+  seller: {key:"ware", mult:6, dur:12, cd:60, label:"🏬 Liquidação",      desc:"Venda ×6 por 12s"},
+  rich:   {key:"value",mult:3, dur:12, cd:90, label:"🪙 Toque de Midas",  desc:"Valor do minério ×3 por 12s"},
+  turbo:  {key:"all",  mult:5, dur:10, cd:90, label:"🚀 Overdrive",       desc:"Linha toda ×5 por 10s"},
+  auto:   {special:"massbuy",  cd:60,        label:"🤖 Compra em Massa",  desc:"Compra 25 melhorias baratas de uma vez"},
+};
+MANAGERS.forEach(m=>m.active=ACTIVE[m.id]);
+
 // ---------- state ----------
 const SAVE_KEY = "mundominerio_v1";
 let S = null;
@@ -302,6 +323,7 @@ function freshState(){
     mines: { 0: newMine(0) }, managers: {},
     names: { miner:{}, mgr:{} },
     gems: 0, superProd: 0, superVal: 0,
+    boosts: {}, cd: {}, assign: {},
     lastSave: now(), netRate: 0,
   };
 }
@@ -317,6 +339,9 @@ function load(){
     if(S.gems==null) S.gems = 0;
     if(S.superProd==null) S.superProd = 0;
     if(S.superVal==null) S.superVal = 0;
+    if(!S.boosts) S.boosts = {};
+    if(!S.cd) S.cd = {};
+    if(!S.assign) S.assign = {};
     return true;
   }catch(e){ S = freshState(); return false; }
 }
@@ -334,16 +359,29 @@ function toolTier(lvl){ return Math.min(Math.floor(lvl/50), TOOLS.length-1); }
 function outfit(arr,lvl){ return arr[Math.min(Math.floor(lvl/50), arr.length-1)]; }
 
 function superProdMult(){ return Math.pow(2, S.superProd||0); }
-function valueMult(){ return mgrMult("value") * Math.pow(2, S.superVal||0); }
+function valueMult(){ return mgrMult("value") * Math.pow(2, S.superVal||0) * tempMult("value"); }
 function gemCostProd(){ return Math.ceil(100 * Math.pow(3, S.superProd||0)); }
 function gemCostVal(){ return Math.ceil(80 * Math.pow(3, S.superVal||0)); }
 function gainGems(n){ S.gems = (S.gems||0) + n; }
+// temporary boost from a triggered active ability
+function tempMult(kind){
+  let m=1; const t=now();
+  for(const man of MANAGERS){
+    const a=man.active; if(!a||!mgr(man.id)) continue;
+    const until=(S.boosts&&S.boosts[man.id])||0; if(until<=t) continue;
+    if(a.key===kind) m*=a.mult;
+    else if(a.key==="all" && (kind==="mine"||kind==="elev"||kind==="ware")) m*=a.mult;
+  }
+  return m;
+}
+// extra bonus from a manager assigned as boss of this mine
+function bossMult(mine){ return (S.assign && S.assign[mine.seq]) ? 1.5 : 1; }
 
 function avgOreV(mine){ let s=0; for(const sh of mine.shafts) s+=oreFor(sh.depth).v; return s/mine.shafts.length; }
-function shaftProd(mine, sh){ const ore=oreFor(sh.depth); return 0.6*sh.lvl*workersFor(sh.lvl)*ore.v*mine.base*mgrMult("mine")*superProdMult(); }
+function shaftProd(mine, sh){ const ore=oreFor(sh.depth); return 0.6*sh.lvl*workersFor(sh.lvl)*ore.v*mine.base*mgrMult("mine")*superProdMult()*bossMult(mine)*tempMult("mine"); }
 function shaftCap(mine, sh){ const ore=oreFor(sh.depth); return 22*sh.lvl*ore.v*mine.base; }
-function elevatorRate(mine){ return 1.6*mine.elevator.lvl*mine.base*avgOreV(mine)*mgrMult("elev")*superProdMult(); }
-function warehouseRate(mine){ return 1.6*mine.warehouse.lvl*mine.base*avgOreV(mine)*mgrMult("ware")*superProdMult(); }
+function elevatorRate(mine){ return 1.6*mine.elevator.lvl*mine.base*avgOreV(mine)*mgrMult("elev")*superProdMult()*bossMult(mine)*tempMult("elev"); }
+function warehouseRate(mine){ return 1.6*mine.warehouse.lvl*mine.base*avgOreV(mine)*mgrMult("ware")*superProdMult()*bossMult(mine)*tempMult("ware"); }
 
 function shaftCost(mine, sh){ const ore=oreFor(sh.depth); return Math.ceil(8*ore.v*mine.base*Math.pow(1.16, sh.lvl-1)); }
 function elevatorCost(mine){ return Math.ceil(30*mine.base*avgOreV(mine)*Math.pow(1.17, mine.elevator.lvl-1)); }
@@ -415,6 +453,18 @@ function buySuper(kind){
   if(kind==="prod"){ const c=gemCostProd(); if((S.gems||0)<c) return toast("Faltam 💠!"); S.gems-=c; S.superProd++; Sfx.buy(); toast("🏭 Mina ×2! (total ×"+fmt(superProdMult())+")"); }
   else{ const c=gemCostVal(); if((S.gems||0)<c) return toast("Faltam 💠!"); S.gems-=c; S.superVal++; Sfx.buy(); toast("💎 Valor do minério ×2!"); }
   renderSuper(); renderMine();
+}
+function useAbility(id){
+  const m=MANAGERS.find(x=>x.id===id); if(!m||!m.active||!mgr(id)) return;
+  const t=now(); if(((S.cd&&S.cd[id])||0)>t){ toast("Recarregando…"); return; }
+  if(m.active.special==="massbuy"){ for(let k=0;k<25;k++) autoBuy(); toast("🤖 Compra em massa!"); }
+  else { if(!S.boosts) S.boosts={}; S.boosts[id]=t+m.active.dur*1000; toast(m.active.label+"!"); }
+  if(!S.cd) S.cd={}; S.cd[id]=t+m.active.cd*1000; Sfx.dig(); updateAbilities();
+}
+function assignBoss(id){
+  if(!S.assign) S.assign={};
+  if(S.assign[S.current]===id) delete S.assign[S.current]; else S.assign[S.current]=id;
+  renderManagers(); renderMine(); save();
 }
 function travelTo(seq){
   if(seq>=S.seqUnlocked){
@@ -527,7 +577,7 @@ function updateMine(mine){
   });
   if(r.dig){ const dc=digCost(mine), nx=oreFor(mine.shafts.length);
     r.dig.innerHTML="⛏️ Cavar mais fundo → "+nx.n+" &nbsp;("+money(dc)+")"; r.dig.classList.toggle("cant", S.cash<dc); }
-  const mn=$("#mineName"); if(mn) mn.textContent=SEQ[S.current].flag+" "+SEQ[S.current].c+" • "+minerName(S.current);
+  const mn=$("#mineName"); if(mn){ const boss=S.assign&&S.assign[S.current]; mn.textContent=SEQ[S.current].flag+" "+SEQ[S.current].c+" • "+minerName(S.current)+(boss?" • ★"+mgrName(boss):""); }
 }
 function spawnFloat(){
   const r=UI&&UI.refs; if(!r||!r.floats) return;
@@ -540,6 +590,31 @@ function renderHeader(){
   $("#cash").textContent=money(S.cash);
   $("#rate").textContent="+"+money(S.netRate)+"/s";
   const g=$("#gemCount"); if(g) g.textContent=fmt(S.gems||0);
+}
+function renderAbilities(){
+  let html="";
+  for(const m of MANAGERS){
+    if(!mgr(m.id)||!m.active) continue;
+    const em=m.active.label.split(" ")[0];
+    const nm=m.active.label.replace(/^\S+\s/,"");
+    html+=`<div class="abtn" data-ability="${m.id}"><span class="em">${em}</span><span>${nm}</span>
+      <div class="cdfill" data-cd="${m.id}"></div><div class="cdtxt" data-cdtxt="${m.id}"></div></div>`;
+  }
+  $("#abilities").innerHTML=html;
+}
+function updateAbilities(){
+  const t=now();
+  for(const m of MANAGERS){
+    if(!mgr(m.id)||!m.active) continue;
+    const btn=$('.abtn[data-ability="'+m.id+'"]'); if(!btn) continue;
+    const fill=btn.querySelector("[data-cd]"), txt=btn.querySelector("[data-cdtxt]");
+    const ready=t>=((S.cd&&S.cd[m.id])||0);
+    const isActive=((S.boosts&&S.boosts[m.id])||0)>t;
+    btn.classList.toggle("ready", ready && !isActive);
+    btn.classList.toggle("active", isActive);
+    if(!ready){ const rem=(S.cd[m.id]-t); fill.style.height=Math.max(0,Math.min(1,rem/(m.active.cd*1000)))*100+"%"; txt.textContent=Math.ceil(rem/1000); }
+    else { fill.style.height="0%"; txt.textContent=""; }
+  }
 }
 function renderSuper(){
   $("#superGems").textContent="💠 "+fmt(S.gems||0);
@@ -566,13 +641,17 @@ function renderManagers(){
   let html="";
   for(const m of MANAGERS){
     const owned=mgr(m.id), can=S.cash>=m.cost;
+    const assigned=S.assign && S.assign[S.current]===m.id;
     html+=`<div class="card ${owned?'owned':''}">
       <div class="av">${m.e}</div>
       <div class="c-info">
         <div class="c-name">${mgrName(m.id)} <span class="edit" data-rename-mgr="${m.id}">✏️</span> ${owned?'<span class="pin ok">CONTRATADO</span>':''}</div>
         <div class="c-desc">${m.desc}</div>
+        ${m.active?`<div class="c-desc">⚡ Habilidade: <b>${m.active.label}</b> — ${m.active.desc}</div>`:''}
       </div>
-      ${owned?'':`<button class="mini ${can?'':'cant'}" data-hire="${m.id}">${money(m.cost)}</button>`}
+      ${owned
+        ? `<button class="mini ${assigned?'gray':''}" data-assign="${m.id}">${assigned?'★ Chefe aqui':'Pôr de chefe'}</button>`
+        : `<button class="mini ${can?'':'cant'}" data-hire="${m.id}">${money(m.cost)}</button>`}
     </div>`;
   }
   $("#mgrList").innerHTML=html;
@@ -635,8 +714,10 @@ $("#superList").addEventListener("click",(e)=>{ const b=e.target.closest("[data-
 $("#mgrList").addEventListener("click",(e)=>{
   const ren=e.target.closest("[data-rename-mgr]");
   if(ren){ const id=ren.dataset.renameMgr; const v=prompt("Nome do gerente:", mgrName(id)); if(v&&v.trim()){ S.names.mgr[id]=v.trim().slice(0,22); renderManagers(); save(); } return; }
+  const as=e.target.closest("[data-assign]"); if(as){ assignBoss(as.dataset.assign); return; }
   const b=e.target.closest("[data-hire]"); if(b) hireManager(b.dataset.hire);
 });
+$("#abilities").addEventListener("click",(e)=>{ const b=e.target.closest("[data-ability]"); if(b) useAbility(b.dataset.ability); });
 $("#mapList").addEventListener("click",(e)=>{
   const ren=e.target.closest("[data-rename-miner]");
   if(ren){ const seq=+ren.dataset.renameMiner; const v=prompt("Nome do mineiro:", minerName(seq)); if(v&&v.trim()){ S.names.miner[seq]=v.trim().slice(0,22); renderMap(); save(); } return; }
@@ -675,7 +756,7 @@ const Sfx=(function(){
 function renderAll(){ renderMine(); renderHeader(); }
 let lastTick=now();
 function gameLoop(){ const t=now(); let dt=(t-lastTick)/1000; lastTick=t; if(dt>0.5) dt=0.5; tick(dt); requestAnimationFrame(gameLoop); }
-function headerLoop(){ renderHeader(); updateTurboUi(); requestAnimationFrame(headerLoop); }
+function headerLoop(){ renderHeader(); updateTurboUi(); updateAbilities(); requestAnimationFrame(headerLoop); }
 setInterval(()=>{ renderMine(); }, 220);
 setInterval(spawnFloat, 750);
 setInterval(save, 5000);
@@ -703,6 +784,7 @@ load();
 lastFloatCash=S.cash;
 const off=offlineEarnings();
 renderAll();
+renderAbilities();
 requestAnimationFrame(gameLoop);
 requestAnimationFrame(headerLoop);
 if(off) setTimeout(()=>toast("💤 Enquanto esteve fora ("+Math.floor(off.dt/60)+" min): +"+money(off.gain)),500);
