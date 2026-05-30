@@ -106,6 +106,11 @@
   <div id="ovContent"></div>
 </div>
 
+<!-- Silent looping clip: played on first tap to switch iOS to the "playback"
+     audio session so Web Audio is heard even with the silent switch on. -->
+<audio id="silence" loop playsinline preload="auto"
+  src="data:audio/wav;base64,UklGRrQBAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YZABAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA"></audio>
+
 <script>
 (function () {
   "use strict";
@@ -282,8 +287,8 @@
     // Try several filenames/extensions so any reasonable upload works.
     // Web servers are case-sensitive, so we cover common variations.
     const candidates = [
-      "assets/bento.png", "assets/bento.jpg", "assets/bento.jpeg",
-      "assets/Bento.png", "assets/Bento.jpg", "assets/Bento.jpeg",
+      "assets/bento.jpg", "assets/bento.png", "assets/bento.jpeg",
+      "assets/Bento.jpg", "assets/Bento.png", "assets/Bento.jpeg",
     ];
     let i = 0;
     const img = new Image();
@@ -309,6 +314,7 @@
     }
 
     // must be called from a user gesture on mobile
+    let silenceStarted = false;
     function unlock() {
       ensure();
       if (!ctx) return;
@@ -319,6 +325,17 @@
         const s = ctx.createBufferSource();
         s.buffer = b; s.connect(ctx.destination); s.start(0);
       } catch (e) {}
+      // play a looping silent <audio> so iOS uses the "playback" audio
+      // session => Web Audio is heard even with the hardware silent switch on
+      if (!silenceStarted) {
+        const el = document.getElementById("silence");
+        if (el) {
+          el.volume = 1;
+          const p = el.play();
+          if (p && p.catch) p.catch(() => {});
+          silenceStarted = true;
+        }
+      }
     }
 
     // ensure context exists AND is running before scheduling a sound
