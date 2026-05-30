@@ -3,1187 +3,676 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#79a6ff">
+<meta name="theme-color" content="#2b2417">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Craft Breaker - Quebra-blocos Minecraft</title>
+<title>Mundo Minério - Idle Miner</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body {
-    height: 100%;
-    overflow: hidden;
-    background: #1b1b27;
-    font-family: 'Courier New', Courier, monospace;
-    touch-action: none;
-    user-select: none;
-    -webkit-user-select: none;
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  :root{
+    --bg:#1d1812; --panel:#2b2417; --panel2:#352c1c; --line:#46391f;
+    --gold:#ffd24a; --green:#6fcf57; --red:#e25b4b; --txt:#f3ead2; --dim:#b6a880;
   }
-  #wrap {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #14141d;
-  }
-  canvas {
-    display: block;
-    image-rendering: pixelated;
-    image-rendering: crisp-edges;
-    box-shadow: 0 0 0 4px #2b2b3a, 0 12px 40px rgba(0,0,0,0.6);
-    touch-action: none;
-  }
-  /* HUD overlay for menus */
-  #overlay {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    color: #fff;
-    padding: 24px;
-    z-index: 10;
-    background: rgba(10, 12, 20, 0.55);
-    backdrop-filter: blur(2px);
-  }
-  #overlay.hidden { display: none; }
-  .title {
-    font-size: clamp(28px, 9vw, 56px);
-    font-weight: 900;
-    letter-spacing: 1px;
-    color: #fff;
-    text-shadow: 3px 3px 0 #3a3a52, 6px 6px 0 rgba(0,0,0,0.35);
-    margin-bottom: 6px;
-  }
-  .title .b { color: #8fd35a; }
-  .subtitle {
-    font-size: clamp(13px, 4vw, 18px);
-    color: #c9c9e0;
-    margin-bottom: 26px;
-  }
-  .panel {
-    background: #c6c6c6;
-    border: 4px solid #fff;
-    border-right-color: #555;
-    border-bottom-color: #555;
-    padding: 18px 22px;
-    margin-bottom: 22px;
-    max-width: 360px;
-    color: #222;
-    font-size: clamp(12px, 3.6vw, 15px);
-    line-height: 1.7;
-    text-align: left;
-  }
-  .panel b { color: #1d6b1d; }
-  .btn {
-    font-family: inherit;
-    font-size: clamp(16px, 5vw, 22px);
-    font-weight: 900;
-    color: #fff;
-    background: #6aa84f;
-    border: 4px solid #b6ffae;
-    border-right-color: #2f5e22;
-    border-bottom-color: #2f5e22;
-    padding: 14px 40px;
-    cursor: pointer;
-    text-shadow: 2px 2px 0 rgba(0,0,0,0.35);
-    transition: transform 0.05s, filter 0.1s;
-  }
-  .btn:active { transform: translateY(2px); filter: brightness(1.1); }
-  .big-emoji { font-size: clamp(40px, 14vw, 80px); margin-bottom: 8px; line-height: 1; }
-  .stat { font-size: clamp(16px, 5vw, 22px); margin: 4px 0; color: #ffd966; font-weight: bold; }
-  .hint { margin-top: 18px; font-size: 12px; color: #9a9ab0; }
+  html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--txt);
+    font-family:'Trebuchet MS','Segoe UI',system-ui,sans-serif;user-select:none;-webkit-user-select:none;touch-action:manipulation;}
+  #app{position:fixed;inset:0;display:flex;flex-direction:column;max-width:560px;margin:0 auto;}
+
+  /* top bar */
+  #top{flex:0 0 auto;background:linear-gradient(#3a2f1c,#2b2417);border-bottom:3px solid var(--line);
+    padding:8px 10px;display:flex;align-items:center;gap:8px;}
+  #cashWrap{flex:1;min-width:0;}
+  #cash{font-size:clamp(20px,6vw,30px);font-weight:900;color:var(--gold);text-shadow:2px 2px 0 #00000055;line-height:1;}
+  #rate{font-size:12px;color:var(--green);font-weight:bold;}
+  .topbtn{flex:0 0 auto;background:#4a3c22;border:2px solid #6b5630;border-radius:10px;color:var(--txt);
+    font-size:12px;font-weight:bold;padding:8px 10px;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;}
+  .topbtn:active{transform:translateY(1px);filter:brightness(1.15);}
+  .topbtn .ic{font-size:18px;line-height:1;}
+  #mineName{font-size:13px;color:var(--dim);font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+  /* mine scroll area */
+  #mine{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;position:relative;
+    background:
+      repeating-linear-gradient(180deg,#241d12 0 2px,#211a10 2px 4px);
+    padding:8px;-webkit-overflow-scrolling:touch;}
+  .station{background:var(--panel);border:2px solid var(--line);border-radius:12px;margin-bottom:8px;padding:8px 10px;position:relative;overflow:hidden;}
+  .station.surface{background:linear-gradient(#3b6ea5,#2b537f);border-color:#24486e;}
+  .st-head{display:flex;align-items:center;gap:8px;}
+  .av{font-size:30px;line-height:1;filter:drop-shadow(1px 2px 0 #00000055);}
+  .st-info{flex:1;min-width:0;}
+  .st-title{font-weight:900;font-size:14px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .badge{font-size:10px;background:#000000044;border:1px solid #ffffff33;border-radius:6px;padding:1px 5px;color:var(--gold);font-weight:bold;}
+  .st-sub{font-size:11px;color:var(--dim);}
+  .workers{font-size:14px;letter-spacing:-2px;}
+  .bar{height:8px;background:#00000055;border-radius:5px;margin-top:6px;overflow:hidden;border:1px solid #00000066;}
+  .bar>div{height:100%;width:0;background:linear-gradient(90deg,#7a5a2c,#caa14a);transition:width .12s linear;}
+  .buy{flex:0 0 auto;min-width:92px;background:linear-gradient(#73b13f,#5d9433);border:2px solid #8fe05a;
+    border-bottom-color:#3e6a1f;border-right-color:#3e6a1f;border-radius:10px;color:#fff;font-weight:900;
+    font-size:13px;padding:8px 6px;cursor:pointer;text-align:center;line-height:1.15;text-shadow:1px 1px 0 #00000055;}
+  .buy:active{transform:translateY(1px);}
+  .buy.cant{filter:grayscale(.7) brightness(.8);}
+  .buy small{display:block;font-size:10px;font-weight:bold;opacity:.9;}
+  .row2{display:flex;align-items:center;gap:8px;margin-top:6px;}
+  .lvlpill{font-size:11px;font-weight:900;background:#00000055;border-radius:8px;padding:3px 7px;color:var(--gold);}
+
+  /* elevator visual */
+  #elevator{display:flex;align-items:stretch;gap:8px;}
+  .shaftcol{flex:0 0 30px;background:#15110a;border-radius:8px;border:2px solid #000;position:relative;overflow:hidden;}
+  .cage{position:absolute;left:3px;right:3px;height:22px;background:linear-gradient(#caa14a,#8a6a2c);border:1px solid #000;border-radius:4px;
+    animation:lift 3s ease-in-out infinite;display:flex;align-items:center;justify-content:center;font-size:13px;}
+  @keyframes lift{0%,100%{top:4px;}50%{top:calc(100% - 26px);}}
+
+  /* walking workers strip */
+  .mineworkers{position:relative;height:18px;margin-top:4px;overflow:hidden;}
+  .mw{position:absolute;top:0;font-size:14px;animation:walk linear infinite;}
+  @keyframes walk{0%{left:-6%;transform:scaleX(1);}49%{left:96%;transform:scaleX(1);}50%{transform:scaleX(-1);}99%{left:-6%;transform:scaleX(-1);}100%{left:-6%;transform:scaleX(1);}}
+
+  #digbtn{width:100%;background:#4a3c22;border:2px dashed #7b6334;border-radius:12px;color:var(--gold);
+    font-weight:900;font-size:14px;padding:12px;cursor:pointer;margin-bottom:24px;}
+  #digbtn:active{transform:translateY(1px);}
+  #digbtn.cant{filter:grayscale(.6) brightness(.85);}
+
+  /* turbo hint */
+  #turbo{position:absolute;left:50%;top:8px;transform:translateX(-50%);background:#000000aa;border:1px solid var(--gold);
+    color:var(--gold);font-weight:900;border-radius:20px;padding:4px 14px;font-size:13px;pointer-events:none;opacity:0;transition:opacity .2s;z-index:5;}
+  #turbo.on{opacity:1;}
+
+  /* modal */
+  .modal{position:fixed;inset:0;background:#000000bb;display:none;flex-direction:column;z-index:30;align-items:center;justify-content:flex-start;padding:14px;}
+  .modal.open{display:flex;}
+  .sheet{background:var(--panel);border:3px solid var(--line);border-radius:16px;width:100%;max-width:520px;max-height:88%;
+    overflow-y:auto;padding:14px;margin-top:auto;margin-bottom:auto;-webkit-overflow-scrolling:touch;}
+  .sheet h2{font-size:20px;margin-bottom:4px;color:var(--gold);}
+  .sheet p.h{font-size:12px;color:var(--dim);margin-bottom:12px;}
+  .close{position:sticky;top:0;float:right;background:#5a3030;border:2px solid #8a4a4a;color:#fff;border-radius:10px;
+    font-weight:900;padding:6px 12px;cursor:pointer;font-size:14px;}
+  .card{background:var(--panel2);border:2px solid var(--line);border-radius:12px;padding:10px;margin-bottom:9px;display:flex;gap:10px;align-items:center;}
+  .card .av{font-size:34px;}
+  .card .c-info{flex:1;min-width:0;}
+  .card .c-name{font-weight:900;font-size:15px;}
+  .card .c-desc{font-size:11.5px;color:var(--dim);line-height:1.35;}
+  .card.locked{opacity:.55;}
+  .card.owned{border-color:var(--green);}
+  .pin{font-size:10px;font-weight:900;padding:2px 7px;border-radius:7px;background:#000000055;}
+  .pin.ok{color:var(--green);} .pin.locked{color:var(--red);}
+  .country{display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;background:var(--panel2);border:2px solid var(--line);margin-bottom:8px;}
+  .country.cur{border-color:var(--gold);}
+  .country .flag{font-size:30px;}
+  .cont-h{font-weight:900;color:var(--gold);margin:14px 0 6px;font-size:16px;border-bottom:1px solid var(--line);padding-bottom:3px;}
+  .mini{background:linear-gradient(#73b13f,#5d9433);border:2px solid #8fe05a;border-radius:9px;color:#fff;font-weight:900;
+    padding:7px 12px;cursor:pointer;font-size:12px;white-space:nowrap;}
+  .mini.cant{filter:grayscale(.7) brightness(.8);}
+  .mini.gray{background:#4a3c22;border-color:#6b5630;}
+
+  #toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%) translateY(60px);background:#000000dd;border:2px solid var(--gold);
+    color:var(--gold);font-weight:bold;padding:10px 18px;border-radius:14px;font-size:14px;z-index:50;opacity:0;transition:all .25s;max-width:90%;text-align:center;}
+  #toast.show{transform:translateX(-50%) translateY(0);opacity:1;}
+  .footer{text-align:center;font-size:11px;color:var(--dim);padding:6px;}
+  .footer a{color:var(--dim);}
+  .resetbtn{background:#5a3030;border:2px solid #8a4a4a;color:#fff;border-radius:10px;font-weight:bold;padding:8px 14px;cursor:pointer;margin-top:6px;}
 </style>
 </head>
 <body>
-<div id="wrap">
-  <canvas id="game"></canvas>
+<div id="app">
+  <div id="top">
+    <div id="cashWrap">
+      <div id="cash">$0</div>
+      <div id="rate">+$0/s</div>
+    </div>
+    <div class="topbtn" data-open="map"><span class="ic">🗺️</span>Mapa</div>
+    <div class="topbtn" data-open="mgr"><span class="ic">👔</span>Gerentes</div>
+  </div>
+  <div id="turbo">⏩ TURBO</div>
+  <div id="mine"></div>
 </div>
 
-<div id="overlay">
-  <div id="ovContent"></div>
+<!-- Managers modal -->
+<div class="modal" id="modalMgr">
+  <div class="sheet">
+    <button class="close" data-close>Fechar ✕</button>
+    <h2>👔 Super Gerentes</h2>
+    <p class="h">Cada gerente tem uma habilidade única e permanente. Contrate com dinheiro.</p>
+    <div id="mgrList"></div>
+  </div>
 </div>
 
-<!-- Silent looping clip: played on first tap to switch iOS to the "playback"
-     audio session so Web Audio is heard even with the silent switch on. -->
-<audio id="silence" loop playsinline preload="auto"
-  src="data:audio/wav;base64,UklGRrQBAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YZABAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA"></audio>
+<!-- Map modal -->
+<div class="modal" id="modalMap">
+  <div class="sheet">
+    <button class="close" data-close>Fechar ✕</button>
+    <h2>🗺️ Continentes & Minas</h2>
+    <p class="h">Viaje pelo mundo: do Brasil até a Oceania. Desbloqueie a próxima mina pagando o custo. Cada país tem minério mais valioso!</p>
+    <div id="mapList"></div>
+    <div class="footer">
+      <button class="resetbtn" data-reset>🗑️ Reiniciar jogo do zero</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
 
 <script>
-(function () {
-  "use strict";
+(function(){
+"use strict";
 
-  const canvas = document.getElementById("game");
-  const ctx = canvas.getContext("2d");
-  const overlay = document.getElementById("overlay");
-  const ovContent = document.getElementById("ovContent");
+/* =========================================================
+   Mundo Minério — idle miner
+   ========================================================= */
 
-  // ---- Logical resolution (portrait, mobile-first) ----
-  const BASE_W = 420;
-  const BASE_H = 720;
-  let scale = 1;
+// ---------- helpers ----------
+const $ = (s,el=document)=>el.querySelector(s);
+const now = ()=>Date.now();
+function fmt(n){
+  if(!isFinite(n)) return "∞";
+  if(n<0) return "-"+fmt(-n);
+  if(n<1000) return (n<10 && n%1!==0)? n.toFixed(1) : Math.floor(n).toString();
+  const u=["","K","M","B","T","Qa","Qi","Sx","Sp","Oc","No","Dc","Ud","Dd"];
+  let i=0; while(n>=1000 && i<u.length-1){n/=1000;i++;}
+  return (n>=100? n.toFixed(0): n.toFixed(2))+u[i];
+}
+function money(n){return "$"+fmt(n);}
 
-  function resize() {
-    const ww = window.innerWidth;
-    const wh = window.innerHeight;
-    scale = Math.min(ww / BASE_W, wh / BASE_H);
-    // Keep crisp integer-ish pixels but allow fractional for fit
-    canvas.width = BASE_W;
-    canvas.height = BASE_H;
-    canvas.style.width = Math.floor(BASE_W * scale) + "px";
-    canvas.style.height = Math.floor(BASE_H * scale) + "px";
-  }
-  window.addEventListener("resize", resize);
-  window.addEventListener("orientationchange", resize);
-  resize();
+// ---------- static data ----------
+// tool evolves every 50 mine levels: hands -> wood -> stone -> iron -> gold -> diamond
+const TOOLS = ["✋","🪓","🔨","⛏️","⚒️","🛠️","💎"];
+// the three station characters change "clothes" every 50 levels
+const FOREMEN   = ["👷🏽","👷🏽‍♂️","🧑🏽‍🏭","🦺","🧑🏽‍🔧","🤠","🦸🏽‍♂️"];
+const LIFTERS   = ["🧑‍✈️","💂","🤵","🕵️","🧑‍🚀","🦸","🧙"];
+const KEEPERS   = ["🧑‍💼","👨‍💼","🕴️","🧑‍⚖️","🤴","🧝","🦹"];
 
-  // ---- Tiny pixel-texture generator for Minecraft-ish blocks ----
-  // Each block type returns an offscreen canvas we can stamp.
-  const TEX_SIZE = 16;
-  const texCache = {};
+// ore tiers by depth (dirt -> diamond), each color + value multiplier
+const ORE = [
+  {n:"Terra",     c:"#9c6b3f", v:1},
+  {n:"Cascalho",  c:"#8a8a8a", v:2.2},
+  {n:"Carvão",    c:"#33343a", v:5},
+  {n:"Cobre",     c:"#c0703a", v:11},
+  {n:"Ferro",     c:"#c9c9d1", v:24},
+  {n:"Prata",     c:"#dfe2ea", v:52},
+  {n:"Ouro",      c:"#f2c84b", v:115},
+  {n:"Esmeralda", c:"#2ecc71", v:260},
+  {n:"Rubi",      c:"#e0413a", v:560},
+  {n:"Diamante",  c:"#5fe3d6", v:1200},
+];
+function oreFor(depth){ return ORE[Math.min(depth, ORE.length-1)]; }
 
-  function makeTex(draw) {
-    const c = document.createElement("canvas");
-    c.width = TEX_SIZE; c.height = TEX_SIZE;
-    const g = c.getContext("2d");
-    draw(g);
-    return c;
-  }
+// continents -> countries (mines). Order: South America ... Oceania
+const CONTINENTS = [
+  {n:"América do Sul", e:"🌎", mines:[
+    {c:"Brasil",flag:"🇧🇷",miner:"Zé do Garimpo"},
+    {c:"Argentina",flag:"🇦🇷",miner:"Diego Picareta"},
+    {c:"Chile",flag:"🇨🇱",miner:"Cobreiro Cobrini"},
+    {c:"Peru",flag:"🇵🇪",miner:"Inca de Ouro"},
+    {c:"Colômbia",flag:"🇨🇴",miner:"Esmeraldo"},
+  ]},
+  {n:"América do Norte", e:"🌎", mines:[
+    {c:"México",flag:"🇲🇽",miner:"Pancho Prata"},
+    {c:"Estados Unidos",flag:"🇺🇸",miner:"Goldie Joe"},
+    {c:"Canadá",flag:"🇨🇦",miner:"Lenhador Lou"},
+  ]},
+  {n:"Europa", e:"🌍", mines:[
+    {c:"Portugal",flag:"🇵🇹",miner:"Tio Manel"},
+    {c:"Espanha",flag:"🇪🇸",miner:"Don Mineiro"},
+    {c:"França",flag:"🇫🇷",miner:"Pierre Pioche"},
+    {c:"Alemanha",flag:"🇩🇪",miner:"Hans Eisen"},
+  ]},
+  {n:"África", e:"🌍", mines:[
+    {c:"África do Sul",flag:"🇿🇦",miner:"Sipho Ouro"},
+    {c:"Gana",flag:"🇬🇭",miner:"Kofi Karat"},
+    {c:"Congo",flag:"🇨🇩",miner:"Diamante Dembe"},
+  ]},
+  {n:"Ásia", e:"🌏", mines:[
+    {c:"Índia",flag:"🇮🇳",miner:"Raj Rubi"},
+    {c:"China",flag:"🇨🇳",miner:"Mestre Long"},
+    {c:"Rússia",flag:"🇷🇺",miner:"Boris Bota"},
+  ]},
+  {n:"Oceania", e:"🌏", mines:[
+    {c:"Austrália",flag:"🇦🇺",miner:"Outback Ozzy"},
+    {c:"Nova Zelândia",flag:"🇳🇿",miner:"Kiwi Kane"},
+  ]},
+];
+// flatten the mine sequence
+const SEQ = [];
+CONTINENTS.forEach((ct,ci)=>ct.mines.forEach((m,mi)=>SEQ.push({ci,mi,...m,cont:ct.n,ce:ct.e})));
+function mineBaseValue(seqIndex){ return Math.pow(6, seqIndex); } // each country ~6x richer
+function mineUnlockCost(seqIndex){ return 500 * Math.pow(40, seqIndex-1); }
 
-  // simple seeded noise speckle
-  function speckle(g, base, dark, light, density) {
-    g.fillStyle = base;
-    g.fillRect(0, 0, TEX_SIZE, TEX_SIZE);
-    for (let i = 0; i < TEX_SIZE * TEX_SIZE * density; i++) {
-      const x = (Math.random() * TEX_SIZE) | 0;
-      const y = (Math.random() * TEX_SIZE) | 0;
-      g.fillStyle = Math.random() < 0.5 ? dark : light;
-      g.fillRect(x, y, 1, 1);
-    }
-  }
+// super managers — each a unique permanent ability
+const MANAGERS = [
+  {id:"foreman", e:"🧑🏽‍🏭", name:"Capataz Tonho", cost:1500,
+   desc:"Mineiros trabalham 2× mais rápido em todas as minas.", mult:{mine:2}},
+  {id:"lifter", e:"🛗", name:"Elevadorista Bia", cost:6000,
+   desc:"Elevador 2× mais veloz e com o dobro de carga.", mult:{elev:2}},
+  {id:"seller", e:"💰", name:"Vendedora Cleo", cost:25000,
+   desc:"Armazém vende 2× mais rápido.", mult:{ware:2}},
+  {id:"rich", e:"💎", name:"Joalheiro Rui", cost:120000,
+   desc:"Todo minério vale +60% de dinheiro.", mult:{value:1.6}},
+  {id:"turbo", e:"⚡", name:"Engenheira Tina", cost:600000,
+   desc:"O TURBO (segurar a tela) fica 2× mais forte e nunca esfria.", flag:"turbo"},
+  {id:"auto", e:"🤖", name:"Robô Capanga", cost:3000000,
+   desc:"Compra sozinho a melhoria mais barata que você puder pagar.", flag:"auto"},
+];
 
-  const TEXTURES = {
-    grass: () => makeTex((g) => {
-      // dirt body
-      speckle(g, "#7a5230", "#5d3d22", "#8c6238", 0.5);
-      // grass top
-      g.fillStyle = "#5a9c3a";
-      g.fillRect(0, 0, TEX_SIZE, 5);
-      for (let i = 0; i < 40; i++) {
-        const x = (Math.random() * TEX_SIZE) | 0;
-        const y = (Math.random() * 5) | 0;
-        g.fillStyle = Math.random() < 0.5 ? "#4a8230" : "#6fb84a";
-        g.fillRect(x, y, 1, 1);
-      }
-      // little dripping grass
-      g.fillStyle = "#5a9c3a";
-      for (let x = 0; x < TEX_SIZE; x += 3) g.fillRect(x, 5, 1, 1);
-    }),
-    dirt: () => makeTex((g) => speckle(g, "#7a5230", "#5d3d22", "#8c6238", 0.55)),
-    stone: () => makeTex((g) => {
-      speckle(g, "#8a8a8a", "#6f6f6f", "#a5a5a5", 0.45);
-      g.fillStyle = "#5f5f5f";
-      g.fillRect(2, 6, 5, 1); g.fillRect(9, 10, 4, 1); g.fillRect(6, 12, 3, 1);
-    }),
-    cobble: () => makeTex((g) => {
-      speckle(g, "#8f8f8f", "#5e5e5e", "#b0b0b0", 0.6);
-      g.fillStyle = "#4d4d4d";
-      g.fillRect(0, 5, TEX_SIZE, 1); g.fillRect(0, 11, TEX_SIZE, 1);
-      g.fillRect(5, 0, 1, 5); g.fillRect(10, 6, 1, 5); g.fillRect(3, 12, 1, 4);
-    }),
-    diamond: () => makeTex((g) => {
-      speckle(g, "#8a8a8a", "#6f6f6f", "#a5a5a5", 0.4);
-      // diamond gems
-      g.fillStyle = "#3fe0d0";
-      const gems = [[3,3],[10,4],[5,9],[11,10]];
-      for (const [x, y] of gems) {
-        g.fillRect(x, y, 2, 2);
-        g.fillStyle = "#aef7ef"; g.fillRect(x, y, 1, 1);
-        g.fillStyle = "#1fb3a6"; g.fillRect(x+1, y+1, 1, 1);
-        g.fillStyle = "#3fe0d0";
-      }
-    }),
-    gold: () => makeTex((g) => {
-      speckle(g, "#8a8a8a", "#6f6f6f", "#a5a5a5", 0.4);
-      g.fillStyle = "#f2c84b";
-      const gems = [[2,4],[9,3],[6,10],[12,9]];
-      for (const [x, y] of gems) {
-        g.fillRect(x, y, 3, 2);
-        g.fillStyle = "#fff0a8"; g.fillRect(x, y, 1, 1);
-        g.fillStyle = "#c79420"; g.fillRect(x+2, y+1, 1, 1);
-        g.fillStyle = "#f2c84b";
-      }
-    }),
-    plank: () => makeTex((g) => {
-      speckle(g, "#b9854f", "#9c6e3e", "#c79a63", 0.3);
-      g.fillStyle = "#7c5630";
-      g.fillRect(0, 7, TEX_SIZE, 1);
-      g.fillRect(0, 15, TEX_SIZE, 1);
-      g.fillRect(5, 0, 1, 7); g.fillRect(11, 8, 1, 7);
-    }),
-    tnt: () => makeTex((g) => {
-      g.fillStyle = "#c0392b"; g.fillRect(0, 0, TEX_SIZE, TEX_SIZE);
-      g.fillStyle = "#ecf0f1"; g.fillRect(0, 6, TEX_SIZE, 4);
-      g.fillStyle = "#2c3e50";
-      g.font = "bold 5px monospace"; g.textAlign = "center"; g.textBaseline = "middle";
-      g.fillText("TNT", 8, 8);
-      g.fillStyle = "#a93226"; g.fillRect(0, 0, TEX_SIZE, 1); g.fillRect(0, 15, TEX_SIZE, 1);
-    }),
+// ---------- state ----------
+const SAVE_KEY = "mundominerio_v1";
+let S = null;
+
+function newMine(seqIndex){
+  const meta = SEQ[seqIndex];
+  return {
+    seq: seqIndex,
+    base: mineBaseValue(seqIndex),
+    shafts: [ newShaft(0) ],                 // start with 1 dig level
+    elevator: { lvl: 1 },
+    warehouse: { lvl: 1 },
+    miner: meta.miner,
   };
+}
+function newShaft(depth){
+  return { depth, lvl:1, ore:0 };
+}
 
-  function getTex(name) {
-    if (!texCache[name]) texCache[name] = TEXTURES[name]();
-    return texCache[name];
-  }
-
-  // ---- Background photo (Bento) with Minecraft-style processing ----
-  // Loads assets/bento.jpg, then pixelates + posterizes + tints so it
-  // harmonizes with the blocky art. Falls back to a sky gradient.
-  let bgReady = false;
-  let bgCanvas = null;       // processed, low-res blocky version
-  const BG_PIXELS_W = 120;   // low horizontal resolution => chunky pixels
-
-  function posterize(v, steps) {
-    const step = 255 / (steps - 1);
-    return Math.round(Math.round(v / step) * step);
-  }
-
-  function processBackground(img) {
-    const ph = Math.round(BG_PIXELS_W * (BASE_H / BASE_W));
-    const c = document.createElement("canvas");
-    c.width = BG_PIXELS_W; c.height = ph;
-    const g = c.getContext("2d");
-
-    // cover-fit the photo into the low-res canvas
-    const ir = img.width / img.height;
-    const cr = BG_PIXELS_W / ph;
-    let dw, dh, dx, dy;
-    if (ir > cr) { dh = ph; dw = ph * ir; dx = (BG_PIXELS_W - dw) / 2; dy = 0; }
-    else { dw = BG_PIXELS_W; dh = BG_PIXELS_W / ir; dx = 0; dy = (ph - dh) / 2; }
-    g.drawImage(img, dx, dy, dw, dh);
-
-    // posterize colors + push toward a cool "minecraft" palette
-    const data = g.getImageData(0, 0, BG_PIXELS_W, ph);
-    const d = data.data;
-    for (let i = 0; i < d.length; i += 4) {
-      let r = posterize(d[i], 6);
-      let gg = posterize(d[i + 1], 6);
-      let b = posterize(d[i + 2], 6);
-      // gentle cool tint so the photo blends with the sky/grass theme
-      r = Math.min(255, r * 0.9 + 10);
-      gg = Math.min(255, gg * 0.95 + 18);
-      b = Math.min(255, b * 1.05 + 28);
-      d[i] = r; d[i + 1] = gg; d[i + 2] = b;
-    }
-    g.putImageData(data, 0, 0);
-
-    bgCanvas = c;
-    bgReady = true;
-  }
-
-  (function loadBackground() {
-    // Try several filenames/extensions so any reasonable upload works.
-    // Web servers are case-sensitive, so we cover common variations.
-    const candidates = [
-      "assets/bento.jpg", "assets/bento.png", "assets/bento.jpeg",
-      "assets/Bento.jpg", "assets/Bento.png", "assets/Bento.jpeg",
-    ];
-    let i = 0;
-    const img = new Image();
-    img.onload = () => { try { processBackground(img); } catch (e) { bgReady = false; } };
-    img.onerror = () => { i++; if (i < candidates.length) img.src = candidates[i]; else bgReady = false; };
-    img.src = candidates[i];
-  })();
-
-  // ---- Sound engine (Web Audio, fully procedural, no files) ----
-  const SFX = (function () {
-    let ctx = null;
-    let master = null;
-    let muted = localStorage.getItem("craftbreaker_muted") === "1";
-
-    function ensure() {
-      if (ctx) return;
-      const AC = window.AudioContext || window.webkitAudioContext;
-      if (!AC) return;
-      ctx = new AC();
-      master = ctx.createGain();
-      master.gain.value = muted ? 0 : 0.5;
-      master.connect(ctx.destination);
-    }
-
-    // must be called from a user gesture on mobile
-    let silenceStarted = false;
-    function unlock() {
-      ensure();
-      if (!ctx) return;
-      if (ctx.state === "suspended") ctx.resume();
-      // play a tiny silent buffer to fully kickstart audio on iOS/Safari
-      try {
-        const b = ctx.createBuffer(1, 1, 22050);
-        const s = ctx.createBufferSource();
-        s.buffer = b; s.connect(ctx.destination); s.start(0);
-      } catch (e) {}
-      // play a looping silent <audio> so iOS uses the "playback" audio
-      // session => Web Audio is heard even with the hardware silent switch on
-      if (!silenceStarted) {
-        const el = document.getElementById("silence");
-        if (el) {
-          el.volume = 1;
-          const p = el.play();
-          if (p && p.catch) p.catch(() => {});
-          silenceStarted = true;
-        }
-      }
-    }
-
-    // ensure context exists AND is running before scheduling a sound
-    function prep() {
-      ensure();
-      if (ctx && ctx.state === "suspended") ctx.resume();
-      return !!ctx;
-    }
-
-    function tone(freq, t0, dur, type, vol, glideTo) {
-      if (!ctx) return;
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = type || "square";
-      o.frequency.setValueAtTime(freq, t0);
-      if (glideTo) o.frequency.exponentialRampToValueAtTime(Math.max(1, glideTo), t0 + dur);
-      g.gain.setValueAtTime(0.0001, t0);
-      g.gain.exponentialRampToValueAtTime(vol, t0 + 0.008);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-      o.connect(g); g.connect(master);
-      o.start(t0); o.stop(t0 + dur + 0.02);
-    }
-
-    function noise(t0, dur, vol, cutoff) {
-      if (!ctx) return;
-      const len = Math.floor(ctx.sampleRate * dur);
-      const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-      const data = buf.getChannelData(0);
-      for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
-      const src = ctx.createBufferSource(); src.buffer = buf;
-      const filt = ctx.createBiquadFilter();
-      filt.type = "lowpass"; filt.frequency.value = cutoff || 1200;
-      const g = ctx.createGain(); g.gain.value = vol;
-      src.connect(filt); filt.connect(g); g.connect(master);
-      src.start(t0);
-    }
-
-    // Procedural "fart" (pum). The trick that makes it read clearly as a
-    // fart is the "brap" flutter: a fast square LFO chopping the amplitude,
-    // plus a resonant lowpass for the wet "blaat" and a pitch drop. 💨
-    function fart(base, dur, vol, delay, rising) {
-      if (!ctx) return;
-      const t0 = ctx.currentTime + (delay || 0);
-
-      // --- main tone: low sawtooth that drops in pitch ---
-      const o = ctx.createOscillator();
-      o.type = "sawtooth";
-      const steps = Math.max(14, Math.floor(dur * 80));
-      const curve = new Float32Array(steps);
-      for (let i = 0; i < steps; i++) {
-        const p = i / (steps - 1);
-        const drift = rising ? (1 + 0.85 * p) : (1 - 0.55 * p);
-        const wob = Math.sin(p * Math.PI * 2 * 3) * base * 0.10;
-        curve[i] = Math.max(30, base * drift + wob);
-      }
-      o.frequency.setValueCurveAtTime(curve, t0, dur);
-
-      // --- brap flutter: square LFO modulating amplitude ---
-      const lfo = ctx.createOscillator();
-      lfo.type = "square";
-      const f0 = rising ? 13 : 24;
-      const f1 = rising ? 28 : 10;
-      lfo.frequency.setValueAtTime(f0, t0);
-      lfo.frequency.linearRampToValueAtTime(f1, t0 + dur);
-      const lfoDepth = ctx.createGain();
-      lfoDepth.gain.value = 0.55;
-      const am = ctx.createGain();
-      am.gain.value = 0.5; // center; LFO swings it 0..1 => choppy brap
-      lfo.connect(lfoDepth); lfoDepth.connect(am.gain);
-
-      // --- resonant lowpass for the wet "blaat" ---
-      const lp = ctx.createBiquadFilter();
-      lp.type = "lowpass";
-      lp.frequency.setValueAtTime(1700, t0);
-      lp.frequency.exponentialRampToValueAtTime(360, t0 + dur);
-      lp.Q.value = 7;
-
-      // --- overall envelope ---
-      const env = ctx.createGain();
-      env.gain.setValueAtTime(0.0001, t0);
-      env.gain.exponentialRampToValueAtTime(vol, t0 + 0.03);
-      env.gain.setValueAtTime(vol, t0 + dur * 0.55);
-      env.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-
-      o.connect(lp); lp.connect(am); am.connect(env); env.connect(master);
-      o.start(t0); o.stop(t0 + dur + 0.05);
-      lfo.start(t0); lfo.stop(t0 + dur + 0.05);
-    }
-
-    const api = {
-      unlock,
-      isMuted: () => muted,
-      toggleMute() {
-        muted = !muted;
-        localStorage.setItem("craftbreaker_muted", muted ? "1" : "0");
-        if (master) master.gain.value = muted ? 0 : 0.5;
-        return muted;
-      },
-      // every event is now a pum 💨
-      paddle() { if (!prep()) return; fart(140, 0.22, 0.6); },
-      wall()   { if (!prep()) return; fart(210, 0.14, 0.4); },
-      hit()    { if (!prep()) return; fart(175, 0.18, 0.45); },
-      brk()    { if (!prep()) return; fart(110, 0.3, 0.65); },
-      explode(){ if (!prep()) return; fart(60, 0.75, 0.9); noise(ctx.currentTime, 0.25, 0.18, 600); },
-      launch() { if (!prep()) return; fart(170, 0.32, 0.55, 0, true); },  // pum subindo
-      loseLife(){ if (!prep()) return; fart(150, 0.7, 0.6); },            // pum murchando
-      level()  { if (!prep()) return; fart(140, 0.22, 0.6); fart(200, 0.26, 0.6, 0.24, true); },
-      win()    { if (!prep()) return; [140, 190, 120, 240, 85].forEach((b, i) => fart(b, 0.3, 0.6, i * 0.26, i % 2 === 1)); },
-      over()   { if (!prep()) return; fart(90, 1.0, 0.65); },             // pum longo e triste
-      button() { if (!prep()) return; fart(220, 0.16, 0.4); },
-    };
-    return api;
-  })();
-
-  // ---- Game state ----
-  const STATE = { MENU: 0, PLAYING: 1, BETWEEN: 2, GAMEOVER: 3, WIN: 4 };
-  let state = STATE.MENU;
-
-  let score = 0;
-  let lives = 3;
-  let level = 1;
-  let highScore = +(localStorage.getItem("craftbreaker_hi") || 0);
-
-  // Paddle (oak planks)
-  const PADDLE_BASE_W = 92, PADDLE_MIN_W = 50, PADDLE_MAX_W = 152;
-  const paddle = {
-    w: PADDLE_BASE_W, h: 18,
-    x: BASE_W / 2 - PADDLE_BASE_W / 2,
-    y: BASE_H - 70,
+function freshState(){
+  return {
+    cash: 0,
+    seqUnlocked: 1,        // how many mines unlocked (sequential)
+    current: 0,            // active mine seq index
+    mines: { 0: newMine(0) },
+    managers: {},          // id -> true
+    lastSave: now(),
+    netRate: 0,
   };
+}
 
-  // Balls (snowballs) — supports multi-ball
-  const BALL_R = 8;
-  const MAX_BALLS = 9;
-  let balls = [];
-  function makeBall(stuck) {
-    return {
-      x: paddle.x + paddle.w / 2, y: paddle.y - BALL_R - 2, r: BALL_R,
-      vx: 0, vy: 0, speed: 5.7 + (level - 1) * 0.45, stuck: !!stuck, dead: false,
-    };
+function load(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if(!raw){ S = freshState(); return false; }
+    S = JSON.parse(raw);
+    // sanity
+    if(!S.mines || !S.mines[S.current]) { S = freshState(); }
+    return true;
+  }catch(e){ S = freshState(); return false; }
+}
+function save(){ S.lastSave = now(); try{ localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }catch(e){} }
+
+// ---------- economy ----------
+function mgr(id){ return !!S.managers[id]; }
+function mgrMult(kind){
+  let m = 1;
+  for(const man of MANAGERS){
+    if(man.mult && man.mult[kind] && mgr(man.id)) m *= man.mult[kind];
   }
+  return m;
+}
+// worker count grows at 10,25,50,100,150,...
+function workersFor(lvl){
+  let w = 1;
+  if(lvl>=10) w++;
+  if(lvl>=25) w++;
+  for(let m=50;m<=lvl;m+=50) w++;
+  return w;
+}
+function toolTier(lvl){ return Math.min(Math.floor(lvl/50), TOOLS.length-1); }
+function outfit(arr,lvl){ return arr[Math.min(Math.floor(lvl/50), arr.length-1)]; }
 
-  // Power-ups / power-downs that fall from broken blocks 🎁
-  let powerups = [];
-  const POWER = {
-    multi:  { emoji: "🔵", color: "#3fa7ff", good: true,  label: "Multi-bola!" },
-    expand: { emoji: "🟩", color: "#5fd35a", good: true,  label: "Barra maior!" },
-    slow:   { emoji: "🐢", color: "#56d6c8", good: true,  label: "Bola lenta" },
-    life:   { emoji: "💗", color: "#ff6fae", good: true,  label: "+1 vida!" },
-    shrink: { emoji: "😈", color: "#e0503f", good: false, label: "Barra menor!" },
-    fast:   { emoji: "⚡", color: "#ffae34", good: false, label: "Bola veloz!" },
-  };
-  // weighted pool (more shrink/fast => harder)
-  const POWER_DROPS = ["multi", "multi", "expand", "slow", "life", "shrink", "shrink", "fast", "fast"];
+function shaftProd(mine, sh){ // cash-value units / sec
+  const ore = oreFor(sh.depth);
+  return 0.45 * sh.lvl * workersFor(sh.lvl) * ore.v * mine.base * mgrMult("mine");
+}
+function shaftCap(mine, sh){
+  const ore = oreFor(sh.depth);
+  return 22 * sh.lvl * ore.v * mine.base;
+}
+function elevatorRate(mine){ return 1.6 * mine.elevator.lvl * mine.base * avgOreV(mine) * mgrMult("elev"); }
+function warehouseRate(mine){ return 1.6 * mine.warehouse.lvl * mine.base * avgOreV(mine) * mgrMult("ware"); }
+function avgOreV(mine){ // average ore value across shafts (for elevator/ware scaling)
+  let s=0; for(const sh of mine.shafts) s+=oreFor(sh.depth).v; return s/mine.shafts.length;
+}
+function valueMult(){ return mgrMult("value"); }
 
-  // Bricks
-  let bricks = [];
-  const BRICK_COLS = 7;
-  const BRICK_ROWS = 6;
-  const BRICK_GAP = 4;
-  const FIELD_TOP = 90;
-  const FIELD_PAD = 12;
-  let brickW = 0, brickH = 26;
+// costs
+function shaftCost(mine, sh){ const ore=oreFor(sh.depth); return Math.ceil(8*ore.v*mine.base*Math.pow(1.16, sh.lvl-1)); }
+function elevatorCost(mine){ return Math.ceil(30*mine.base*avgOreV(mine)*Math.pow(1.17, mine.elevator.lvl-1)); }
+function warehouseCost(mine){ return Math.ceil(30*mine.base*avgOreV(mine)*Math.pow(1.17, mine.warehouse.lvl-1)); }
+function digCost(mine){ return Math.ceil(120*mine.base*avgOreV(mine)*Math.pow(6, mine.shafts.length-1)); }
+const MAX_SHAFTS = 8;
 
-  // Particles for breaking / explosions
-  let particles = [];
+// one simulation step
+function tick(dt){
+  const mine = S.mines[S.current];
+  if(!mine) return;
+  const boost = boostFactor();
 
-  // Block type config: hp + points + texture
-  const BLOCK_TYPES = {
-    grass:   { hp: 1, pts: 10, tex: "grass" },
-    dirt:    { hp: 1, pts: 10, tex: "dirt" },
-    stone:   { hp: 2, pts: 20, tex: "stone" },
-    cobble:  { hp: 2, pts: 20, tex: "cobble" },
-    gold:    { hp: 3, pts: 40, tex: "gold" },
-    diamond: { hp: 4, pts: 80, tex: "diamond" },
-    tnt:     { hp: 1, pts: 30, tex: "tnt", explosive: true },
-  };
-
-  function buildLevel(lvl) {
-    bricks = [];
-    brickW = (BASE_W - FIELD_PAD * 2 - BRICK_GAP * (BRICK_COLS - 1)) / BRICK_COLS;
-    // pattern selection by level
-    const palettes = [
-      ["grass", "dirt", "stone", "cobble"],
-      ["stone", "cobble", "gold", "stone"],
-      ["cobble", "gold", "diamond", "stone"],
-      ["diamond", "gold", "stone", "cobble"],
-    ];
-    const pal = palettes[(lvl - 1) % palettes.length];
-    const rows = Math.min(BRICK_ROWS + Math.floor((lvl - 1) / 2), 9);
-
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < BRICK_COLS; c++) {
-        // some gaps for shape variety on higher levels
-        if (lvl >= 2 && (r + c) % 7 === 0 && Math.random() < 0.35) continue;
-        let typeName = pal[r % pal.length];
-        // sprinkle TNT
-        if (Math.random() < 0.06 + lvl * 0.01) typeName = "tnt";
-        const t = BLOCK_TYPES[typeName];
-        bricks.push({
-          x: FIELD_PAD + c * (brickW + BRICK_GAP),
-          y: FIELD_TOP + r * (brickH + BRICK_GAP),
-          w: brickW, h: brickH,
-          hp: t.hp, maxHp: t.hp,
-          pts: t.pts, tex: t.tex,
-          explosive: !!t.explosive,
-          alive: true,
-        });
-      }
-    }
+  // 1) produce ore into each shaft buffer
+  for(const sh of mine.shafts){
+    const cap = shaftCap(mine, sh);
+    sh.ore = Math.min(cap, sh.ore + shaftProd(mine, sh)*dt*boost);
   }
-
-  function resetBall() {
-    paddle.w = PADDLE_BASE_W;
-    paddle.x = Math.min(Math.max(paddle.x, FIELD_PAD), BASE_W - FIELD_PAD - paddle.w);
-    balls = [makeBall(true)];
-    powerups = [];
+  // 2) elevator pulls from shafts -> warehouse buffer
+  if(!mine._wh) mine._wh = 0;
+  let lift = elevatorRate(mine)*dt*boost;
+  const totalOre = mine.shafts.reduce((a,sh)=>a+sh.ore,0);
+  if(totalOre>0 && lift>0){
+    const moved = Math.min(lift, totalOre);
+    const ratio = moved/totalOre;
+    for(const sh of mine.shafts) sh.ore -= sh.ore*ratio;
+    mine._wh += moved;
   }
-
-  function launchBall() {
-    let launched = false;
-    for (const b of balls) {
-      if (b.stuck) {
-        b.stuck = false;
-        const angle = -Math.PI / 2 + (Math.random() * 0.5 - 0.25);
-        b.vx = Math.cos(angle) * b.speed;
-        b.vy = Math.sin(angle) * b.speed;
-        launched = true;
-      }
-    }
-    if (launched) SFX.launch();
+  // 3) warehouse sells -> cash
+  let sell = Math.min(warehouseRate(mine)*dt*boost, mine._wh);
+  if(sell>0){
+    mine._wh -= sell;
+    const gain = sell*valueMult();
+    S.cash += gain;
+    S._earnAcc = (S._earnAcc||0)+gain;
   }
+  // net rate estimate = current sell potential (bottleneck), for display & offline
+  S.netRate = Math.min(
+    mine.shafts.reduce((a,sh)=>a+shaftProd(mine,sh),0),
+    elevatorRate(mine),
+    warehouseRate(mine)
+  )*valueMult();
 
-  function setBallSpeed(b, s) {
-    s = Math.max(3.6, Math.min(11.5, s));
-    const cur = Math.hypot(b.vx, b.vy) || 1;
-    b.speed = s;
-    if (!b.stuck) { b.vx = b.vx / cur * s; b.vy = b.vy / cur * s; }
+  // robot auto-buyer
+  if(mgr("auto")){
+    S._autoT=(S._autoT||0)+dt;
+    if(S._autoT>1.2){ S._autoT=0; autoBuy(); }
   }
+}
 
-  // chance to drop a surprise item from a broken block
-  function maybeDropPower(x, y, tex) {
-    let chance = 0.13;
-    if (tex === "tnt") chance = 0.55;          // bombs love surprises 💣
-    else if (tex === "diamond" || tex === "gold") chance = 0.28;
-    if (Math.random() > chance) return;
-    const type = POWER_DROPS[(Math.random() * POWER_DROPS.length) | 0];
-    powerups.push({ x: x - 12, y: y - 12, w: 24, h: 24, vy: 2.3, type, caught: false });
+function offlineEarnings(){
+  const dt = Math.min((now()-(S.lastSave||now()))/1000, 2*3600); // cap 2h
+  if(dt>30 && S.netRate>0){
+    const gain = S.netRate*dt*0.5; // offline at 50% efficiency
+    if(gain>0){ S.cash+=gain; return {dt,gain}; }
   }
+  return null;
+}
 
-  function applyPower(type) {
-    const info = POWER[type];
-    flashMsg(info.emoji + " " + info.label, 1000);
-    if (info.good) SFX.level(); else SFX.loseLife();
-    switch (type) {
-      case "multi": {
-        const adds = [];
-        for (const b of balls) {
-          if (balls.length + adds.length >= MAX_BALLS) break;
-          if (b.stuck) { // launch the stuck ball so the split is fun
-            b.stuck = false;
-            const a = -Math.PI / 2 + (Math.random() * 0.5 - 0.25);
-            b.vx = Math.cos(a) * b.speed; b.vy = Math.sin(a) * b.speed;
-          }
-          const nb = makeBall(false);
-          nb.x = b.x; nb.y = b.y; nb.speed = b.speed;
-          const ang = Math.atan2(b.vy, b.vx) + (Math.random() < 0.5 ? 0.6 : -0.6);
-          nb.vx = Math.cos(ang) * b.speed; nb.vy = Math.sin(ang) * b.speed;
-          adds.push(nb);
-        }
-        balls = balls.concat(adds).slice(0, MAX_BALLS);
-        break;
-      }
-      case "expand": paddle.w = Math.min(PADDLE_MAX_W, paddle.w * 1.35); break;
-      case "shrink": paddle.w = Math.max(PADDLE_MIN_W, paddle.w * 0.68); break;
-      case "fast": for (const b of balls) setBallSpeed(b, b.speed * 1.25); break;
-      case "slow": for (const b of balls) setBallSpeed(b, b.speed * 0.8); break;
-      case "life": lives = Math.min(6, lives + 1); break;
-    }
-    // keep paddle inside the field after a resize
-    if (paddle.x + paddle.w > BASE_W - FIELD_PAD) paddle.x = BASE_W - FIELD_PAD - paddle.w;
-    if (paddle.x < FIELD_PAD) paddle.x = FIELD_PAD;
+// ---------- actions ----------
+function tryBuyShaft(i){
+  const mine=S.mines[S.current], sh=mine.shafts[i]; if(!sh) return;
+  const cost=shaftCost(mine,sh);
+  if(S.cash<cost) return toast("Dinheiro insuficiente!");
+  S.cash-=cost;
+  const before=sh.lvl; sh.lvl++;
+  milestoneFx(before, sh.lvl, "mina");
+  Sfx.buy(); renderMine();
+}
+function tryBuyElevator(){
+  const mine=S.mines[S.current], cost=elevatorCost(mine);
+  if(S.cash<cost) return toast("Dinheiro insuficiente!");
+  S.cash-=cost; const b=mine.elevator.lvl; mine.elevator.lvl++;
+  milestoneFx(b, mine.elevator.lvl, "elevador"); Sfx.buy(); renderMine();
+}
+function tryBuyWarehouse(){
+  const mine=S.mines[S.current], cost=warehouseCost(mine);
+  if(S.cash<cost) return toast("Dinheiro insuficiente!");
+  S.cash-=cost; const b=mine.warehouse.lvl; mine.warehouse.lvl++;
+  milestoneFx(b, mine.warehouse.lvl, "armazém"); Sfx.buy(); renderMine();
+}
+function tryDig(){
+  const mine=S.mines[S.current];
+  if(mine.shafts.length>=MAX_SHAFTS) return toast("Mina no limite! Viaje para outro país 🗺️");
+  const cost=digCost(mine);
+  if(S.cash<cost) return toast("Dinheiro insuficiente para cavar!");
+  S.cash-=cost;
+  mine.shafts.push(newShaft(mine.shafts.length));
+  const ore=oreFor(mine.shafts.length-1);
+  toast("⛏️ Novo nível: "+ore.n+"!"); Sfx.dig(); renderMine();
+}
+function milestoneFx(before, after, what){
+  // tool / clothes / worker change announcements
+  if(Math.floor(after/50)>Math.floor(before/50))
+    toast("🔧 "+what+" evoluiu a ferramenta! (nível "+after+")");
+  else if((before<10&&after>=10)||(before<25&&after>=25))
+    toast("🧑 Novo trabalhador chegou na "+what+"!");
+  else if(Math.floor(after/50)!==Math.floor(before/50))
+    toast("👕 Nova roupa no "+what+"!");
+}
+function autoBuy(){
+  const mine=S.mines[S.current];
+  let best=null;
+  const opts=[];
+  mine.shafts.forEach((sh,i)=>opts.push({cost:shaftCost(mine,sh),fn:()=>{sh.lvl++;}}));
+  opts.push({cost:elevatorCost(mine),fn:()=>{mine.elevator.lvl++;}});
+  opts.push({cost:warehouseCost(mine),fn:()=>{mine.warehouse.lvl++;}});
+  for(const o of opts){ if(o.cost<=S.cash && (!best||o.cost<best.cost)) best=o; }
+  if(best){ S.cash-=best.cost; best.fn(); renderMine(); }
+}
+function hireManager(id){
+  const m=MANAGERS.find(x=>x.id===id); if(!m||mgr(id)) return;
+  if(S.cash<m.cost) return toast("Dinheiro insuficiente!");
+  S.cash-=m.cost; S.managers[id]=true; Sfx.buy(); toast(m.e+" "+m.name+" contratado!");
+  renderManagers(); renderMine();
+}
+function travelTo(seq){
+  if(seq>=S.seqUnlocked){
+    const cost=mineUnlockCost(seq);
+    if(S.cash<cost) return toast("Faltam "+money(cost-S.cash)+" para desbloquear!");
+    S.cash-=cost; S.seqUnlocked=seq+1;
+    if(!S.mines[seq]) S.mines[seq]=newMine(seq);
+    toast("🌍 "+SEQ[seq].c+" desbloqueado!"); Sfx.dig();
   }
+  S.current=seq;
+  if(!S.mines[seq]) S.mines[seq]=newMine(seq);
+  renderMap(); renderMine(); closeModals();
+}
 
-  function updatePowerups() {
-    for (const p of powerups) {
-      p.y += p.vy;
-      if (p.y + p.h >= paddle.y && p.y <= paddle.y + paddle.h &&
-          p.x + p.w >= paddle.x && p.x <= paddle.x + paddle.w) {
-        p.caught = true;
-        applyPower(p.type);
-      }
-    }
-    powerups = powerups.filter((p) => !p.caught && p.y < BASE_H + 30);
-  }
+// ---------- rendering ----------
+const mineEl = $("#mine");
+function renderMine(){
+  const mine=S.mines[S.current]; const meta=SEQ[S.current];
+  let html="";
 
-  function startGame() {
-    score = 0; lives = 3; level = 1;
-    buildLevel(level);
-    resetBall();
-    state = STATE.PLAYING;
-    hideOverlay();
-  }
-
-  function nextLevel() {
-    level++;
-    if (level > 99) { winGame(); return; }
-    buildLevel(level);
-    resetBall();
-    state = STATE.PLAYING;
-    hideOverlay();
-  }
-
-  function loseLife() {
-    lives--;
-    if (lives <= 0) {
-      gameOver();
-    } else {
-      resetBall();
-      flashMsg("Vida perdida! ❤️ x" + lives, 900);
-      SFX.loseLife();
-    }
-  }
-
-  function gameOver() {
-    state = STATE.GAMEOVER;
-    SFX.over();
-    if (score > highScore) { highScore = score; localStorage.setItem("craftbreaker_hi", highScore); }
-    showOverlay(`
-      <div class="big-emoji">💀</div>
-      <div class="title">Game Over</div>
-      <div class="stat">Pontos: ${score}</div>
-      <div class="stat">Recorde: ${highScore}</div>
-      <div class="stat" style="color:#aef7ef">Nível alcançado: ${level}</div>
-      <br>
-      <button class="btn" id="btnRestart">Jogar de novo</button>
-    `);
-    document.getElementById("btnRestart").onclick = menuAction(startGame);
-  }
-
-  function winGame() {
-    state = STATE.WIN;
-    SFX.win();
-    if (score > highScore) { highScore = score; localStorage.setItem("craftbreaker_hi", highScore); }
-    showOverlay(`
-      <div class="big-emoji">💎🏆</div>
-      <div class="title">Você venceu!</div>
-      <div class="stat">Pontos: ${score}</div>
-      <div class="stat">Recorde: ${highScore}</div>
-      <br>
-      <button class="btn" id="btnRestart">Jogar de novo</button>
-    `);
-    document.getElementById("btnRestart").onclick = menuAction(startGame);
-  }
-
-  function levelClear() {
-    state = STATE.BETWEEN;
-    SFX.level();
-    score += 100; // bonus
-    showOverlay(`
-      <div class="big-emoji">⛏️✨</div>
-      <div class="title">Nível ${level} limpo!</div>
-      <div class="stat">+100 bônus</div>
-      <div class="stat">Pontos: ${score}</div>
-      <br>
-      <button class="btn" id="btnNext">Próximo nível →</button>
-    `);
-    document.getElementById("btnNext").onclick = menuAction(nextLevel);
-  }
-
-  // wrap a menu action so it unlocks audio + plays a click
-  function menuAction(fn) {
-    return function () { SFX.unlock(); SFX.button(); fn(); };
-  }
-
-  // ---- Overlay helpers ----
-  function showOverlay(html) {
-    ovContent.innerHTML = html;
-    overlay.classList.remove("hidden");
-  }
-  function hideOverlay() { overlay.classList.add("hidden"); }
-
-  function showMenu() {
-    showOverlay(`
-      <div class="title">CRAFT <span class="b">BREAKER</span></div>
-      <div class="subtitle">Quebra-blocos estilo Minecraft ⛏️</div>
-      <div class="panel">
-        🎯 <b>Objetivo:</b> quebre todos os blocos sem deixar a bola cair.<br>
-        👆 <b>Celular:</b> arraste o dedo para mover a tábua.<br>
-        🖱️ <b>PC:</b> mouse ou setas ← → ; espaço para soltar a bola.<br>
-        💣 <b>TNT</b> explode os blocos vizinhos!<br>
-        💎 Diamante e ouro valem mais pontos.<br>
-        🎁 <b>Itens caem dos blocos</b> — pegue com a barra:<br>
-        🔵 multi-bola · 🟩 barra maior · 🐢 bola lenta · 💗 vida<br>
-        😈 barra menor · ⚡ bola veloz <i>(cuidado!)</i>
+  // surface / warehouse
+  const whLvl=mine.warehouse.lvl, whCost=warehouseCost(mine);
+  html += `<div class="station surface">
+    <div class="st-head">
+      <div class="av">${outfit(KEEPERS,whLvl)}</div>
+      <div class="st-info">
+        <div class="st-title">Armazém <span class="lvlpill">Nv ${whLvl}</span></div>
+        <div class="st-sub">Vende minério • ${money(warehouseRate(mine)*valueMult())}/s</div>
       </div>
-      <button class="btn" id="btnStart">▶ Jogar</button>
-      <div class="hint">Recorde atual: ${highScore} pts</div>
-    `);
-    document.getElementById("btnStart").onclick = menuAction(startGame);
-  }
+      <button class="buy ${S.cash<whCost?'cant':''}" data-act="ware">Melhorar<small>${money(whCost)}</small></button>
+    </div>
+  </div>`;
 
-  // floating flash message
-  let flash = { text: "", until: 0 };
-  function flashMsg(text, ms) { flash.text = text; flash.until = performance.now() + ms; }
+  // elevator
+  const elLvl=mine.elevator.lvl, elCost=elevatorCost(mine);
+  html += `<div class="station">
+    <div id="elevator">
+      <div class="shaftcol"><div class="cage">📦</div></div>
+      <div class="st-info">
+        <div class="st-head">
+          <div class="av">${outfit(LIFTERS,elLvl)}</div>
+          <div class="st-info">
+            <div class="st-title">Elevador <span class="lvlpill">Nv ${elLvl}</span></div>
+            <div class="st-sub">Sobe ${money(elevatorRate(mine)*valueMult())}/s • carga ${fmt(mine._wh||0)}</div>
+          </div>
+          <button class="buy ${S.cash<elCost?'cant':''}" data-act="elev">Melhorar<small>${money(elCost)}</small></button>
+        </div>
+      </div>
+    </div>
+  </div>`;
 
-  // ---- Input ----
-  let pointerActive = false;
-  let boost = false; // turbo: speeds the balls up while the screen is held
-  const keys = {};
-
-  function canvasXFromClient(clientX) {
-    const rect = canvas.getBoundingClientRect();
-    return (clientX - rect.left) / rect.width * BASE_W;
-  }
-  function canvasYFromClient(clientY) {
-    const rect = canvas.getBoundingClientRect();
-    return (clientY - rect.top) / rect.height * BASE_H;
-  }
-
-  // mute button hit-box (top-left corner of the HUD)
-  const MUTE_BOX = { x: 6, y: 4, w: 28, h: 26 };
-  function inMuteBox(cx, cy) {
-    return cx >= MUTE_BOX.x && cx <= MUTE_BOX.x + MUTE_BOX.w &&
-           cy >= MUTE_BOX.y && cy <= MUTE_BOX.y + MUTE_BOX.h;
-  }
-
-  function movePaddleTo(cx) {
-    paddle.x = cx - paddle.w / 2;
-    if (paddle.x < FIELD_PAD) paddle.x = FIELD_PAD;
-    if (paddle.x + paddle.w > BASE_W - FIELD_PAD) paddle.x = BASE_W - FIELD_PAD - paddle.w;
-    for (const b of balls) if (b.stuck) b.x = paddle.x + paddle.w / 2;
-  }
-
-  // Pointer events cover touch + mouse
-  canvas.addEventListener("pointerdown", (e) => {
-    e.preventDefault();
-    SFX.unlock();
-    const cx = canvasXFromClient(e.clientX);
-    const cy = canvasYFromClient(e.clientY);
-    if (inMuteBox(cx, cy)) { SFX.toggleMute(); SFX.button(); return; }
-    pointerActive = true;
-    boost = true; // hold to go turbo ⏩
-    movePaddleTo(cx);
-    if (state === STATE.PLAYING) launchBall();
-  }, { passive: false });
-
-  canvas.addEventListener("pointermove", (e) => {
-    if (!pointerActive) return;
-    e.preventDefault();
-    movePaddleTo(canvasXFromClient(e.clientX));
-  }, { passive: false });
-
-  window.addEventListener("pointerup", () => { pointerActive = false; boost = false; });
-  window.addEventListener("pointercancel", () => { pointerActive = false; boost = false; });
-
-  window.addEventListener("keydown", (e) => {
-    keys[e.key] = true;
-    SFX.unlock();
-    if (e.key === " " || e.key === "ArrowUp") { if (state === STATE.PLAYING) launchBall(); }
-    if (e.key === "ArrowDown") boost = true; // turbo on desktop
-    if ((e.key === "Enter") && state === STATE.MENU) startGame();
-    if (e.key === "m" || e.key === "M") { SFX.toggleMute(); SFX.button(); }
+  // shafts (dig levels)
+  mine.shafts.forEach((sh,i)=>{
+    const ore=oreFor(sh.depth), cost=shaftCost(mine,sh), cap=shaftCap(mine,sh);
+    const pct=Math.min(100, (sh.ore/cap)*100);
+    const wk=workersFor(sh.lvl);
+    const tool=TOOLS[toolTier(sh.lvl)];
+    let walkers="";
+    for(let k=0;k<Math.min(wk,6);k++){
+      const dur=(2.4+Math.random()*1.6).toFixed(2), delay=(-Math.random()*3).toFixed(2);
+      walkers+=`<span class="mw" style="animation-duration:${dur}s;animation-delay:${delay}s">${outfit(FOREMEN,sh.lvl)}</span>`;
+    }
+    html += `<div class="station" style="border-left:5px solid ${ore.c}">
+      <div class="st-head">
+        <div class="av">${tool}</div>
+        <div class="st-info">
+          <div class="st-title">${ore.n} <span class="lvlpill">Nv ${sh.lvl}</span>
+            <span class="badge">${wk} 🧑 ${tool}</span></div>
+          <div class="st-sub">Produz ${money(shaftProd(mine,sh)*valueMult())}/s</div>
+        </div>
+        <button class="buy ${S.cash<cost?'cant':''}" data-act="shaft" data-i="${i}">Melhorar<small>${money(cost)}</small></button>
+      </div>
+      <div class="bar"><div style="width:${pct}%;background:linear-gradient(90deg,${ore.c}88,${ore.c})"></div></div>
+      <div class="mineworkers">${walkers}</div>
+    </div>`;
   });
-  window.addEventListener("keyup", (e) => { keys[e.key] = false; if (e.key === "ArrowDown") boost = false; });
 
-  // ---- Particles ----
-  function spawnParticles(x, y, color, n) {
-    for (let i = 0; i < n; i++) {
-      particles.push({
-        x, y,
-        vx: (Math.random() - 0.5) * 6,
-        vy: (Math.random() - 0.5) * 6 - 2,
-        life: 1,
-        size: 2 + Math.random() * 3,
-        color,
-      });
-    }
+  // dig deeper
+  if(mine.shafts.length<MAX_SHAFTS){
+    const dc=digCost(mine), nextOre=oreFor(mine.shafts.length);
+    html += `<div id="digbtn" class="${S.cash<dc?'cant':''}" data-act="dig">⛏️ Cavar mais fundo → ${nextOre.n} &nbsp;(${money(dc)})</div>`;
+  }else{
+    html += `<div id="digbtn" data-act="map">🌍 Mina completa! Viaje para o próximo país →</div>`;
   }
 
-  function blockColorHint(tex) {
-    switch (tex) {
-      case "grass": return "#5a9c3a";
-      case "dirt": return "#7a5230";
-      case "stone": return "#8a8a8a";
-      case "cobble": return "#7d7d7d";
-      case "gold": return "#f2c84b";
-      case "diamond": return "#3fe0d0";
-      case "tnt": return "#e74c3c";
-      default: return "#aaa";
-    }
+  mineEl.innerHTML=html;
+  // header
+  $("#mineName") && ($("#mineName").textContent="");
+}
+
+function renderHeader(){
+  $("#cash").textContent=money(S.cash);
+  $("#rate").textContent="+"+money(S.netRate)+"/s";
+}
+
+function renderManagers(){
+  const list=$("#mgrList"); let html="";
+  for(const m of MANAGERS){
+    const owned=mgr(m.id);
+    const can=S.cash>=m.cost;
+    html+=`<div class="card ${owned?'owned':''}">
+      <div class="av">${m.e}</div>
+      <div class="c-info">
+        <div class="c-name">${m.name} ${owned?'<span class="pin ok">CONTRATADO</span>':''}</div>
+        <div class="c-desc">${m.desc}</div>
+      </div>
+      ${owned?'':`<button class="mini ${can?'':'cant'}" data-hire="${m.id}">${money(m.cost)}</button>`}
+    </div>`;
   }
+  list.innerHTML=html;
+}
 
-  // ---- Collision / damage ----
-  function damageBrick(b, fromExplosion) {
-    if (!b.alive) return;
-    b.hp--;
-    spawnParticles(b.x + b.w / 2, b.y + b.h / 2, blockColorHint(b.tex), 6);
-    if (b.hp <= 0) {
-      b.alive = false;
-      score += b.pts;
-      spawnParticles(b.x + b.w / 2, b.y + b.h / 2, blockColorHint(b.tex), 10);
-      maybeDropPower(b.x + b.w / 2, b.y + b.h / 2, b.tex);
-      if (b.explosive) explode(b);
-      else if (!fromExplosion) SFX.brk();
-    } else if (!fromExplosion) {
-      SFX.hit();
-    }
-  }
+function renderMap(){
+  const list=$("#mapList"); let html="";
+  CONTINENTS.forEach((ct)=>{
+    html+=`<div class="cont-h">${ct.e} ${ct.n}</div>`;
+    ct.mines.forEach((m)=>{
+      const seq=SEQ.findIndex(x=>x.c===m.c);
+      const unlocked=seq<S.seqUnlocked;
+      const cur=seq===S.current;
+      const nextToUnlock=seq===S.seqUnlocked;
+      let btn;
+      if(cur) btn=`<button class="mini gray">📍 Aqui</button>`;
+      else if(unlocked) btn=`<button class="mini" data-travel="${seq}">Viajar</button>`;
+      else if(nextToUnlock){ const c=mineUnlockCost(seq); btn=`<button class="mini ${S.cash>=c?'':'cant'}" data-travel="${seq}">🔓 ${money(c)}</button>`; }
+      else btn=`<span class="pin locked">🔒</span>`;
+      const ore=oreFor(0);
+      html+=`<div class="country ${cur?'cur':''}">
+        <div class="flag">${m.flag}</div>
+        <div class="c-info">
+          <div class="c-name">${m.c}</div>
+          <div class="c-desc">Mineiro: ${m.miner} • riqueza ×${fmt(mineBaseValue(seq))}</div>
+        </div>
+        ${btn}
+      </div>`;
+    });
+  });
+  list.innerHTML=html;
+}
 
-  function explode(center) {
-    spawnParticles(center.x + center.w / 2, center.y + center.h / 2, "#ff9b3d", 26);
-    flashMsg("💥 BOOM!", 600);
-    SFX.explode();
-    const cx = center.x + center.w / 2;
-    const cy = center.y + center.h / 2;
-    const radius = brickW * 1.8;
-    for (const b of bricks) {
-      if (!b.alive) continue;
-      const bx = b.x + b.w / 2, by = b.y + b.h / 2;
-      const d = Math.hypot(bx - cx, by - cy);
-      if (d <= radius) {
-        // chain explosions but mark fromExplosion to avoid infinite recursion blowup
-        b.hp = 1;
-        damageBrick(b, true);
-      }
-    }
-  }
+// ---------- turbo (tap/hold to accelerate) ----------
+let holding=false, lastTap=0, tapBoostUntil=0;
+function boostFactor(){
+  const strong = mgr("turbo")?2.4:1.6;
+  if(holding) return strong*1.6;
+  if(now()<tapBoostUntil) return strong;
+  return 1;
+}
+function updateTurboUi(){
+  const on = holding || now()<tapBoostUntil;
+  $("#turbo").classList.toggle("on", on);
+}
+mineEl.addEventListener("pointerdown",(e)=>{
+  if(e.target.closest("[data-act]")) return; // let buttons work
+  holding=true; tapBoostUntil=now()+ (mgr("turbo")?1e12:1200); Sfx.unlock();
+});
+window.addEventListener("pointerup",()=>{ holding=false; });
+window.addEventListener("pointercancel",()=>{ holding=false; });
 
-  function aliveCount() { return bricks.reduce((s, b) => s + (b.alive ? 1 : 0), 0); }
+// ---------- event delegation ----------
+mineEl.addEventListener("click",(e)=>{
+  const b=e.target.closest("[data-act]"); if(!b) return;
+  const act=b.dataset.act;
+  if(act==="ware") tryBuyWarehouse();
+  else if(act==="elev") tryBuyElevator();
+  else if(act==="shaft") tryBuyShaft(+b.dataset.i);
+  else if(act==="dig") tryDig();
+  else if(act==="map") openModal("map");
+});
+document.querySelectorAll("[data-open]").forEach(el=>el.addEventListener("click",()=>{ Sfx.unlock(); openModal(el.dataset.open); }));
+document.querySelectorAll("[data-close]").forEach(el=>el.addEventListener("click",closeModals));
+$("#mgrList").addEventListener("click",(e)=>{const b=e.target.closest("[data-hire]"); if(b) hireManager(b.dataset.hire);});
+$("#mapList").addEventListener("click",(e)=>{const b=e.target.closest("[data-travel]"); if(b) travelTo(+b.dataset.travel);});
+$("[data-reset]").addEventListener("click",()=>{
+  if(confirm("Reiniciar TODO o progresso do zero?")){ localStorage.removeItem(SAVE_KEY); S=freshState(); closeModals(); renderAll(); toast("Jogo reiniciado!"); }
+});
 
-  // ---- Update ----
-  function update() {
-    // keyboard paddle move
-    const kspeed = 8;
-    if (keys["ArrowLeft"]) movePaddleTo(paddle.x + paddle.w / 2 - kspeed);
-    if (keys["ArrowRight"]) movePaddleTo(paddle.x + paddle.w / 2 + kspeed);
+function openModal(which){
+  if(which==="mgr"){ renderManagers(); $("#modalMgr").classList.add("open"); }
+  if(which==="map"){ renderMap(); $("#modalMap").classList.add("open"); }
+}
+function closeModals(){ document.querySelectorAll(".modal").forEach(m=>m.classList.remove("open")); }
 
-    if (state !== STATE.PLAYING) { updateParticles(); return; }
+// ---------- toast ----------
+let toastT=null;
+function toast(msg){
+  const t=$("#toast"); t.textContent=msg; t.classList.add("show");
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),1900);
+}
 
-    // turbo while the screen is held (does not change bounce speed)
-    const bf = boost ? 1.9 : 1;
+// ---------- tiny sound (procedural, optional) ----------
+const Sfx=(function(){
+  let ctx=null;
+  function ensure(){ if(ctx)return; const A=window.AudioContext||window.webkitAudioContext; if(A) ctx=new A(); }
+  function blip(f,d,v,type){ if(!ctx)return; const o=ctx.createOscillator(),g=ctx.createGain();
+    o.type=type||"square"; o.frequency.value=f; g.gain.setValueAtTime(0.0001,ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(v,ctx.currentTime+0.01); g.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+d);
+    o.connect(g); g.connect(ctx.destination); o.start(); o.stop(ctx.currentTime+d+0.02); }
+  return {
+    unlock(){ ensure(); if(ctx&&ctx.state==="suspended") ctx.resume(); },
+    buy(){ ensure(); blip(880,0.08,0.18); setTimeout(()=>blip(1320,0.08,0.16),60); },
+    dig(){ ensure(); blip(300,0.18,0.2,"sawtooth"); },
+  };
+})();
 
-    for (const ball of balls) {
-      if (ball.stuck) { ball.x = paddle.x + paddle.w / 2; continue; }
+// ---------- main loops ----------
+function renderAll(){ renderMine(); renderHeader(); }
+let lastTick=now();
+function gameLoop(){
+  const t=now(); let dt=(t-lastTick)/1000; lastTick=t;
+  if(dt>0.5) dt=0.5;
+  tick(dt);
+  requestAnimationFrame(gameLoop);
+}
+// periodic UI refresh (numbers/bars) — cheaper than every frame
+setInterval(()=>{ renderMine(); }, 250);
+function headerLoop(){ renderHeader(); updateTurboUi(); requestAnimationFrame(headerLoop); }
+setInterval(save, 5000);
+window.addEventListener("beforeunload", save);
+document.addEventListener("visibilitychange",()=>{ if(document.hidden) save(); });
 
-      // move ball in small steps to avoid tunneling at high speed
-      const steps = Math.ceil(Math.hypot(ball.vx, ball.vy) * bf / 4);
-      for (let s = 0; s < steps; s++) {
-        ball.x += ball.vx * bf / steps;
-        ball.y += ball.vy * bf / steps;
+// ---------- boot ----------
+load();
+const off=offlineEarnings();
+renderAll();
+requestAnimationFrame(gameLoop);
+requestAnimationFrame(headerLoop);
+if(off) setTimeout(()=>toast("💤 Enquanto esteve fora ("+Math.floor(off.dt/60)+" min): +"+money(off.gain)),500);
 
-        // walls
-        if (ball.x - ball.r < FIELD_PAD) { ball.x = FIELD_PAD + ball.r; ball.vx = Math.abs(ball.vx); SFX.wall(); }
-        if (ball.x + ball.r > BASE_W - FIELD_PAD) { ball.x = BASE_W - FIELD_PAD - ball.r; ball.vx = -Math.abs(ball.vx); SFX.wall(); }
-        if (ball.y - ball.r < FIELD_TOP - 40) { ball.y = FIELD_TOP - 40 + ball.r; ball.vy = Math.abs(ball.vy); SFX.wall(); }
-
-        // paddle
-        if (ball.vy > 0 &&
-            ball.y + ball.r >= paddle.y &&
-            ball.y + ball.r <= paddle.y + paddle.h + 6 &&
-            ball.x >= paddle.x - ball.r &&
-            ball.x <= paddle.x + paddle.w + ball.r) {
-          ball.y = paddle.y - ball.r;
-          const hit = (ball.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2); // -1..1
-          const maxAngle = Math.PI * 0.42;
-          const angle = -Math.PI / 2 + hit * maxAngle;
-          ball.vx = Math.cos(angle) * ball.speed;
-          ball.vy = Math.sin(angle) * ball.speed;
-          SFX.paddle();
-        }
-
-        // bricks
-        for (const b of bricks) {
-          if (!b.alive) continue;
-          if (ball.x + ball.r > b.x && ball.x - ball.r < b.x + b.w &&
-              ball.y + ball.r > b.y && ball.y - ball.r < b.y + b.h) {
-            const overlapLeft = (ball.x + ball.r) - b.x;
-            const overlapRight = (b.x + b.w) - (ball.x - ball.r);
-            const overlapTop = (ball.y + ball.r) - b.y;
-            const overlapBottom = (b.y + b.h) - (ball.y - ball.r);
-            const minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
-            if (minOverlap === overlapLeft || minOverlap === overlapRight) ball.vx = -ball.vx;
-            else ball.vy = -ball.vy;
-            damageBrick(b, false);
-            break;
-          }
-        }
-
-        // fell off bottom
-        if (ball.y - ball.r > BASE_H) { ball.dead = true; break; }
-      }
-    }
-
-    // remove fallen balls; only lose a life when ALL balls are gone
-    balls = balls.filter((b) => !b.dead);
-    if (balls.length === 0) loseLife();
-
-    updatePowerups();
-    updateParticles();
-
-    if (state === STATE.PLAYING && aliveCount() === 0) levelClear();
-  }
-
-  function updateParticles() {
-    for (const p of particles) {
-      p.x += p.vx; p.y += p.vy; p.vy += 0.25; p.life -= 0.03;
-    }
-    particles = particles.filter((p) => p.life > 0);
-  }
-
-  // ---- Render ----
-  function drawBackground() {
-    if (bgReady && bgCanvas) {
-      // pixelated photo of Bento, scaled up with smoothing off => blocky
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(bgCanvas, 0, 0, bgCanvas.width, bgCanvas.height, 0, 0, BASE_W, BASE_H);
-      ctx.imageSmoothingEnabled = true;
-
-      // sky-blue wash so blocks/HUD stay readable and it matches the theme
-      ctx.fillStyle = "rgba(74, 130, 210, 0.22)";
-      ctx.fillRect(0, 0, BASE_W, BASE_H);
-
-      // vignette to focus the play field
-      const vg = ctx.createRadialGradient(BASE_W / 2, BASE_H / 2, BASE_H * 0.25, BASE_W / 2, BASE_H / 2, BASE_H * 0.72);
-      vg.addColorStop(0, "rgba(0,0,0,0)");
-      vg.addColorStop(1, "rgba(10,16,30,0.55)");
-      ctx.fillStyle = vg;
-      ctx.fillRect(0, 0, BASE_W, BASE_H);
-      return;
-    }
-
-    // ---- Fallback: Minecraft sky gradient ----
-    const sky = ctx.createLinearGradient(0, 0, 0, BASE_H);
-    sky.addColorStop(0, "#5b8fe6");
-    sky.addColorStop(0.55, "#79a6ff");
-    sky.addColorStop(1, "#bcd4ff");
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, BASE_W, BASE_H);
-
-    // blocky sun
-    ctx.fillStyle = "#fff3a0";
-    ctx.fillRect(BASE_W - 78, 24, 44, 44);
-    ctx.fillStyle = "rgba(255,255,255,0.35)";
-    ctx.fillRect(BASE_W - 70, 32, 28, 28);
-
-    // blocky clouds
-    ctx.fillStyle = "rgba(255,255,255,0.85)";
-    drawCloud(40, 50); drawCloud(150, 110); drawCloud(250, 60);
-  }
-
-  function drawCloud(x, y) {
-    const u = 10;
-    ctx.fillRect(x, y, u * 4, u * 2);
-    ctx.fillRect(x + u, y - u, u * 2, u);
-    ctx.fillRect(x - u, y + u, u, u);
-    ctx.fillRect(x + u * 4, y, u, u);
-  }
-
-  function drawBlock(tex, x, y, w, h, damaged) {
-    ctx.drawImage(getTex(tex), Math.round(x), Math.round(y), w, h);
-    // pixel border / bevel
-    ctx.strokeStyle = "rgba(0,0,0,0.35)";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(Math.round(x) + 0.5, Math.round(y) + 0.5, w - 1, h - 1);
-    // top-left highlight
-    ctx.strokeStyle = "rgba(255,255,255,0.25)";
-    ctx.beginPath();
-    ctx.moveTo(x + 1, y + h - 2); ctx.lineTo(x + 1, y + 1); ctx.lineTo(x + w - 2, y + 1);
-    ctx.stroke();
-    // crack overlay if damaged
-    if (damaged > 0) {
-      ctx.strokeStyle = "rgba(0,0,0,0.45)";
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      const cx = x + w / 2, cy = y + h / 2;
-      ctx.moveTo(cx, y + 2); ctx.lineTo(cx - 4, cy); ctx.lineTo(cx + 3, cy + 3); ctx.lineTo(cx - 2, y + h - 2);
-      if (damaged > 1) { ctx.moveTo(x + 4, cy); ctx.lineTo(cx, cy + 2); ctx.lineTo(x + w - 4, cy - 1); }
-      ctx.stroke();
-    }
-  }
-
-  function drawPaddle() {
-    // oak plank paddle with bevel
-    const tex = getTex("plank");
-    const pat = ctx.createPattern(tex, "repeat");
-    ctx.save();
-    ctx.translate(paddle.x, paddle.y);
-    ctx.fillStyle = pat;
-    ctx.fillRect(0, 0, paddle.w, paddle.h);
-    ctx.strokeStyle = "rgba(0,0,0,0.4)";
-    ctx.strokeRect(0.5, 0.5, paddle.w - 1, paddle.h - 1);
-    ctx.strokeStyle = "rgba(255,255,255,0.3)";
-    ctx.beginPath(); ctx.moveTo(1, paddle.h - 1); ctx.lineTo(1, 1); ctx.lineTo(paddle.w - 1, 1); ctx.stroke();
-    ctx.restore();
-  }
-
-  function drawBalls() {
-    for (const ball of balls) {
-      // motion trail while turbo is active ⏩
-      if (boost && !ball.stuck) {
-        const sp = Math.hypot(ball.vx, ball.vy) || 1;
-        for (let k = 1; k <= 3; k++) {
-          ctx.globalAlpha = 0.18 * (4 - k);
-          ctx.beginPath();
-          ctx.arc(ball.x - ball.vx / sp * k * 6, ball.y - ball.vy / sp * k * 6, ball.r * (1 - k * 0.12), 0, Math.PI * 2);
-          ctx.fillStyle = "#bfe3ff";
-          ctx.fill();
-        }
-        ctx.globalAlpha = 1;
-      }
-      // snowball: white with light shading
-      ctx.beginPath();
-      ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
-      ctx.fillStyle = "#f4f8ff";
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(ball.x - 2, ball.y - 2, ball.r * 0.5, 0, Math.PI * 2);
-      ctx.fillStyle = "#ffffff";
-      ctx.fill();
-      ctx.strokeStyle = "#b9c6dd";
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
-      ctx.stroke();
-      // speckles
-      ctx.fillStyle = "#d8e2f0";
-      ctx.fillRect(ball.x + 1, ball.y + 2, 1.5, 1.5);
-      ctx.fillRect(ball.x - 3, ball.y + 1, 1.5, 1.5);
-    }
-  }
-
-  function drawPowerups() {
-    for (const p of powerups) {
-      const info = POWER[p.type];
-      // blocky token
-      ctx.fillStyle = info.color;
-      ctx.fillRect(p.x, p.y, p.w, p.h);
-      ctx.strokeStyle = "rgba(0,0,0,0.4)"; ctx.lineWidth = 2;
-      ctx.strokeRect(p.x + 1, p.y + 1, p.w - 2, p.h - 2);
-      ctx.strokeStyle = "rgba(255,255,255,0.5)";
-      ctx.beginPath();
-      ctx.moveTo(p.x + 2, p.y + p.h - 2); ctx.lineTo(p.x + 2, p.y + 2); ctx.lineTo(p.x + p.w - 2, p.y + 2);
-      ctx.stroke();
-      ctx.font = "15px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(info.emoji, p.x + p.w / 2, p.y + p.h / 2 + 1);
-    }
-  }
-
-  function drawParticles() {
-    for (const p of particles) {
-      ctx.globalAlpha = Math.max(0, p.life);
-      ctx.fillStyle = p.color;
-      ctx.fillRect(p.x, p.y, p.size, p.size);
-    }
-    ctx.globalAlpha = 1;
-  }
-
-  function drawHUD() {
-    // top bar
-    ctx.fillStyle = "rgba(20, 20, 30, 0.55)";
-    ctx.fillRect(0, 0, BASE_W, 34);
-
-    // mute button
-    ctx.font = "18px sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(SFX.isMuted() ? "🔇" : "🔊", MUTE_BOX.x + MUTE_BOX.w / 2, MUTE_BOX.y + MUTE_BOX.h / 2 + 1);
-
-    ctx.fillStyle = "#fff";
-    ctx.font = "bold 17px 'Courier New', monospace";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    ctx.fillText("Pts: " + score, 42, 17);
-
-    ctx.textAlign = "center";
-    ctx.fillText("Nível " + level, BASE_W / 2, 17);
-
-    // hearts
-    ctx.textAlign = "right";
-    let hearts = "";
-    for (let i = 0; i < lives; i++) hearts += "❤️";
-    ctx.font = "16px sans-serif";
-    ctx.fillText(hearts || "—", BASE_W - 12, 17);
-
-    // flash message
-    if (flash.text && performance.now() < flash.until) {
-      ctx.textAlign = "center";
-      ctx.font = "bold 26px 'Courier New', monospace";
-      ctx.fillStyle = "rgba(0,0,0,0.5)";
-      ctx.fillText(flash.text, BASE_W / 2 + 2, BASE_H / 2 + 2);
-      ctx.fillStyle = "#ffd966";
-      ctx.fillText(flash.text, BASE_W / 2, BASE_H / 2);
-    }
-
-    // "tap to launch" hint
-    if (state === STATE.PLAYING && balls.some((b) => b.stuck)) {
-      ctx.textAlign = "center";
-      ctx.font = "bold 15px 'Courier New', monospace";
-      ctx.fillStyle = "rgba(255,255,255,0.9)";
-      ctx.fillText("Toque para soltar a bola 👆", BASE_W / 2, paddle.y - 40);
-    }
-
-    // turbo indicator
-    if (state === STATE.PLAYING && boost && !balls.some((b) => b.stuck)) {
-      ctx.textAlign = "center";
-      ctx.font = "bold 18px 'Courier New', monospace";
-      ctx.fillStyle = "rgba(255, 220, 90, 0.95)";
-      ctx.fillText("⏩ TURBO", BASE_W / 2, 52);
-    }
-  }
-
-  function render() {
-    drawBackground();
-
-    // play field border
-    ctx.strokeStyle = "rgba(0,0,0,0.25)";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(FIELD_PAD - 4, FIELD_TOP - 44, BASE_W - (FIELD_PAD - 4) * 2, BASE_H - (FIELD_TOP - 44) + 50);
-
-    for (const b of bricks) {
-      if (!b.alive) continue;
-      drawBlock(b.tex, b.x, b.y, b.w, b.h, b.maxHp - b.hp);
-    }
-
-    drawParticles();
-    drawPowerups();
-    drawPaddle();
-    drawBalls();
-    drawHUD();
-  }
-
-  // ---- Loop ----
-  let last = performance.now();
-  function loop(now) {
-    last = now;
-    update();
-    render();
-    requestAnimationFrame(loop);
-  }
-
-  // boot
-  showMenu();
-  requestAnimationFrame(loop);
-
-  // Prevent context menu / scroll glitches on mobile
-  document.addEventListener("contextmenu", (e) => e.preventDefault());
-  document.addEventListener("gesturestart", (e) => e.preventDefault());
 })();
 </script>
 </body>
