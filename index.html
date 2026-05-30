@@ -279,10 +279,17 @@
   }
 
   (function loadBackground() {
+    // Try several filenames/extensions so any reasonable upload works.
+    // Web servers are case-sensitive, so we cover common variations.
+    const candidates = [
+      "assets/bento.png", "assets/bento.jpg", "assets/bento.jpeg",
+      "assets/Bento.png", "assets/Bento.jpg", "assets/Bento.jpeg",
+    ];
+    let i = 0;
     const img = new Image();
     img.onload = () => { try { processBackground(img); } catch (e) { bgReady = false; } };
-    img.onerror = () => { bgReady = false; }; // keep sky fallback
-    img.src = "assets/bento.jpg";
+    img.onerror = () => { i++; if (i < candidates.length) img.src = candidates[i]; else bgReady = false; };
+    img.src = candidates[i];
   })();
 
   // ---- Sound engine (Web Audio, fully procedural, no files) ----
@@ -304,7 +311,21 @@
     // must be called from a user gesture on mobile
     function unlock() {
       ensure();
+      if (!ctx) return;
+      if (ctx.state === "suspended") ctx.resume();
+      // play a tiny silent buffer to fully kickstart audio on iOS/Safari
+      try {
+        const b = ctx.createBuffer(1, 1, 22050);
+        const s = ctx.createBufferSource();
+        s.buffer = b; s.connect(ctx.destination); s.start(0);
+      } catch (e) {}
+    }
+
+    // ensure context exists AND is running before scheduling a sound
+    function prep() {
+      ensure();
       if (ctx && ctx.state === "suspended") ctx.resume();
+      return !!ctx;
     }
 
     function tone(freq, t0, dur, type, vol, glideTo) {
@@ -344,17 +365,17 @@
         if (master) master.gain.value = muted ? 0 : 0.5;
         return muted;
       },
-      paddle() { ensure(); if (!ctx) return; tone(360, ctx.currentTime, 0.09, "square", 0.35, 520); },
-      wall()   { ensure(); if (!ctx) return; tone(660, ctx.currentTime, 0.05, "square", 0.22); },
-      hit()    { ensure(); if (!ctx) return; tone(300, ctx.currentTime, 0.06, "square", 0.28, 240); },
-      brk()    { ensure(); if (!ctx) return; const t = ctx.currentTime; tone(520, t, 0.1, "square", 0.3, 180); noise(t, 0.12, 0.18, 2400); },
-      explode(){ ensure(); if (!ctx) return; const t = ctx.currentTime; noise(t, 0.45, 0.5, 900); tone(120, t, 0.4, "sawtooth", 0.35, 40); },
-      launch() { ensure(); if (!ctx) return; tone(300, ctx.currentTime, 0.14, "square", 0.3, 720); },
-      loseLife(){ ensure(); if (!ctx) return; const t = ctx.currentTime; tone(400, t, 0.18, "triangle", 0.35, 120); tone(200, t + 0.16, 0.25, "triangle", 0.3, 80); },
-      level()  { ensure(); if (!ctx) return; const t = ctx.currentTime; [523, 659, 784, 1047].forEach((f, i) => tone(f, t + i * 0.09, 0.16, "square", 0.32)); },
-      win()    { ensure(); if (!ctx) return; const t = ctx.currentTime; [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, t + i * 0.11, 0.22, "square", 0.34)); },
-      over()   { ensure(); if (!ctx) return; const t = ctx.currentTime; [392, 330, 262, 196].forEach((f, i) => tone(f, t + i * 0.16, 0.28, "triangle", 0.34)); },
-      button() { ensure(); if (!ctx) return; tone(660, ctx.currentTime, 0.08, "square", 0.3, 880); },
+      paddle() { if (!prep()) return; tone(360, ctx.currentTime, 0.09, "square", 0.35, 520); },
+      wall()   { if (!prep()) return; tone(660, ctx.currentTime, 0.05, "square", 0.22); },
+      hit()    { if (!prep()) return; tone(300, ctx.currentTime, 0.06, "square", 0.28, 240); },
+      brk()    { if (!prep()) return; const t = ctx.currentTime; tone(520, t, 0.1, "square", 0.3, 180); noise(t, 0.12, 0.18, 2400); },
+      explode(){ if (!prep()) return; const t = ctx.currentTime; noise(t, 0.45, 0.5, 900); tone(120, t, 0.4, "sawtooth", 0.35, 40); },
+      launch() { if (!prep()) return; tone(300, ctx.currentTime, 0.14, "square", 0.3, 720); },
+      loseLife(){ if (!prep()) return; const t = ctx.currentTime; tone(400, t, 0.18, "triangle", 0.35, 120); tone(200, t + 0.16, 0.25, "triangle", 0.3, 80); },
+      level()  { if (!prep()) return; const t = ctx.currentTime; [523, 659, 784, 1047].forEach((f, i) => tone(f, t + i * 0.09, 0.16, "square", 0.32)); },
+      win()    { if (!prep()) return; const t = ctx.currentTime; [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, t + i * 0.11, 0.22, "square", 0.34)); },
+      over()   { if (!prep()) return; const t = ctx.currentTime; [392, 330, 262, 196].forEach((f, i) => tone(f, t + i * 0.16, 0.28, "triangle", 0.34)); },
+      button() { if (!prep()) return; tone(660, ctx.currentTime, 0.08, "square", 0.3, 880); },
     };
     return api;
   })();
