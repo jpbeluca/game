@@ -16,6 +16,20 @@
   html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--txt);
     font-family:'Trebuchet MS','Segoe UI',system-ui,sans-serif;user-select:none;-webkit-user-select:none;touch-action:manipulation;}
   #app{position:fixed;inset:0;display:flex;flex-direction:column;max-width:560px;margin:0 auto;}
+  /* background photo (upload assets/fundo.jpg) */
+  #bg{position:fixed;inset:0;background-size:cover;background-position:center;z-index:-2;background-color:#15110a;}
+  #bg::after{content:"";position:fixed;inset:0;z-index:-1;
+    background:linear-gradient(180deg,#1d1812aa 0%,#1d1812cc 45%,#1d1812ee 100%);}
+  #mineName{font-size:12px;color:var(--dim);font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;}
+  .edit{cursor:pointer;font-size:12px;opacity:.7;}
+  .edit:active{opacity:1;}
+  /* floating +$ */
+  .floatlayer{position:absolute;inset:0;pointer-events:none;overflow:visible;}
+  .floatup{position:absolute;bottom:8px;color:#eaffd0;font-weight:900;font-size:13px;text-shadow:1px 1px 0 #00000088;
+    animation:floatup 1.1s ease-out forwards;}
+  @keyframes floatup{0%{transform:translateY(0);opacity:0;}15%{opacity:1;}100%{transform:translateY(-46px);opacity:0;}}
+  /* ore chunk carried by walking miners */
+  .mw .load{font-size:9px;margin-left:-2px;vertical-align:super;}
 
   /* top bar */
   #top{flex:0 0 auto;background:linear-gradient(#3a2f1c,#2b2417);border-bottom:3px solid var(--line);
@@ -31,9 +45,7 @@
 
   /* mine scroll area */
   #mine{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;position:relative;
-    background:
-      repeating-linear-gradient(180deg,#241d12 0 2px,#211a10 2px 4px);
-    padding:8px;-webkit-overflow-scrolling:touch;}
+    background:transparent;padding:8px;-webkit-overflow-scrolling:touch;}
   .station{background:var(--panel);border:2px solid var(--line);border-radius:12px;margin-bottom:8px;padding:8px 10px;position:relative;overflow:hidden;}
   .station.surface{background:linear-gradient(#3b6ea5,#2b537f);border-color:#24486e;}
   .st-head{display:flex;align-items:center;gap:8px;}
@@ -112,11 +124,13 @@
 </style>
 </head>
 <body>
+<div id="bg"></div>
 <div id="app">
   <div id="top">
     <div id="cashWrap">
       <div id="cash">$0</div>
       <div id="rate">+$0/s</div>
+      <div id="mineName"></div>
     </div>
     <div class="topbtn" data-open="map"><span class="ic">🗺️</span>Mapa</div>
     <div class="topbtn" data-open="mgr"><span class="ic">👔</span>Gerentes</div>
@@ -272,11 +286,12 @@ function newShaft(depth){
 
 function freshState(){
   return {
-    cash: 0,
+    cash: 30,
     seqUnlocked: 1,        // how many mines unlocked (sequential)
     current: 0,            // active mine seq index
     mines: { 0: newMine(0) },
     managers: {},          // id -> true
+    names: { miner:{}, mgr:{} }, // custom names chosen by the player
     lastSave: now(),
     netRate: 0,
   };
@@ -287,8 +302,11 @@ function load(){
     const raw = localStorage.getItem(SAVE_KEY);
     if(!raw){ S = freshState(); return false; }
     S = JSON.parse(raw);
-    // sanity
+    // sanity + migrations
     if(!S.mines || !S.mines[S.current]) { S = freshState(); }
+    if(!S.names) S.names = { miner:{}, mgr:{} };
+    if(!S.names.miner) S.names.miner = {};
+    if(!S.names.mgr) S.names.mgr = {};
     return true;
   }catch(e){ S = freshState(); return false; }
 }
@@ -316,7 +334,7 @@ function outfit(arr,lvl){ return arr[Math.min(Math.floor(lvl/50), arr.length-1)]
 
 function shaftProd(mine, sh){ // cash-value units / sec
   const ore = oreFor(sh.depth);
-  return 0.45 * sh.lvl * workersFor(sh.lvl) * ore.v * mine.base * mgrMult("mine");
+  return 0.6 * sh.lvl * workersFor(sh.lvl) * ore.v * mine.base * mgrMult("mine");
 }
 function shaftCap(mine, sh){
   const ore = oreFor(sh.depth);
@@ -460,78 +478,134 @@ function travelTo(seq){
 
 // ---------- rendering ----------
 const mineEl = $("#mine");
-function renderMine(){
-  const mine=S.mines[S.current]; const meta=SEQ[S.current];
-  let html="";
+let uiSig=null, UI=null, lastFloatCash=0;
 
+function minerName(seq){ return (S.names.miner&&S.names.miner[seq]) || SEQ[seq].miner; }
+function mgrName(id){ const m=MANAGERS.find(x=>x.id===id); return (S.names.mgr&&S.names.mgr[id]) || (m?m.name:id); }
+
+// rebuild only when the *structure* changes (worker count, tool/clothes tier, shaft count)
+function mineSignature(mine){
+  return [S.current, mine.shafts.length,
+    mine.shafts.map(sh=>workersFor(sh.lvl)+"."+toolTier(sh.lvl)+"."+Math.floor(sh.lvl/50)).join(","),
+    "E"+Math.floor(mine.elevator.lvl/50),
+    "W"+Math.floor(mine.warehouse.lvl/50)
+  ].join("|");
+}
+function renderMine(){
+  const mine=S.mines[S.current];
+  const sig=mineSignature(mine);
+  if(sig!==uiSig){ buildMine(mine); uiSig=sig; }
+  updateMine(mine);
+}
+
+function buildMine(mine){
+  UI={};
+  let html="";
   // surface / warehouse
-  const whLvl=mine.warehouse.lvl, whCost=warehouseCost(mine);
   html += `<div class="station surface">
+    <div class="floatlayer" data-ref="floats"></div>
     <div class="st-head">
-      <div class="av">${outfit(KEEPERS,whLvl)}</div>
+      <div class="av" data-ref="whAv"></div>
       <div class="st-info">
-        <div class="st-title">Armazém <span class="lvlpill">Nv ${whLvl}</span></div>
-        <div class="st-sub">Vende minério • ${money(warehouseRate(mine)*valueMult())}/s</div>
+        <div class="st-title">Armazém <span class="lvlpill" data-ref="whLvl"></span></div>
+        <div class="st-sub" data-ref="whSub"></div>
       </div>
-      <button class="buy ${S.cash<whCost?'cant':''}" data-act="ware">Melhorar<small>${money(whCost)}</small></button>
+      <button class="buy" data-act="ware" data-ref="whBuy"></button>
     </div>
   </div>`;
-
   // elevator
-  const elLvl=mine.elevator.lvl, elCost=elevatorCost(mine);
   html += `<div class="station">
     <div id="elevator">
-      <div class="shaftcol"><div class="cage">📦</div></div>
+      <div class="shaftcol"><div class="cage" data-ref="cage">📦</div></div>
       <div class="st-info">
         <div class="st-head">
-          <div class="av">${outfit(LIFTERS,elLvl)}</div>
+          <div class="av" data-ref="elAv"></div>
           <div class="st-info">
-            <div class="st-title">Elevador <span class="lvlpill">Nv ${elLvl}</span></div>
-            <div class="st-sub">Sobe ${money(elevatorRate(mine)*valueMult())}/s • carga ${fmt(mine._wh||0)}</div>
+            <div class="st-title">Elevador <span class="lvlpill" data-ref="elLvl"></span></div>
+            <div class="st-sub" data-ref="elSub"></div>
           </div>
-          <button class="buy ${S.cash<elCost?'cant':''}" data-act="elev">Melhorar<small>${money(elCost)}</small></button>
+          <button class="buy" data-act="elev" data-ref="elBuy"></button>
         </div>
       </div>
     </div>
   </div>`;
-
   // shafts (dig levels)
   mine.shafts.forEach((sh,i)=>{
-    const ore=oreFor(sh.depth), cost=shaftCost(mine,sh), cap=shaftCap(mine,sh);
-    const pct=Math.min(100, (sh.ore/cap)*100);
-    const wk=workersFor(sh.lvl);
-    const tool=TOOLS[toolTier(sh.lvl)];
+    const ore=oreFor(sh.depth), wk=workersFor(sh.lvl), tool=TOOLS[toolTier(sh.lvl)];
     let walkers="";
     for(let k=0;k<Math.min(wk,6);k++){
       const dur=(2.4+Math.random()*1.6).toFixed(2), delay=(-Math.random()*3).toFixed(2);
-      walkers+=`<span class="mw" style="animation-duration:${dur}s;animation-delay:${delay}s">${outfit(FOREMEN,sh.lvl)}</span>`;
+      walkers+=`<span class="mw" style="animation-duration:${dur}s;animation-delay:${delay}s">${outfit(FOREMEN,sh.lvl)}<span class="load" style="color:${ore.c}">◆</span></span>`;
     }
     html += `<div class="station" style="border-left:5px solid ${ore.c}">
       <div class="st-head">
         <div class="av">${tool}</div>
         <div class="st-info">
-          <div class="st-title">${ore.n} <span class="lvlpill">Nv ${sh.lvl}</span>
-            <span class="badge">${wk} 🧑 ${tool}</span></div>
-          <div class="st-sub">Produz ${money(shaftProd(mine,sh)*valueMult())}/s</div>
+          <div class="st-title">${ore.n} <span class="lvlpill" data-ref="sh${i}Lvl"></span>
+            <span class="badge">${wk}🧑 ${tool}</span></div>
+          <div class="st-sub" data-ref="sh${i}Sub"></div>
         </div>
-        <button class="buy ${S.cash<cost?'cant':''}" data-act="shaft" data-i="${i}">Melhorar<small>${money(cost)}</small></button>
+        <button class="buy" data-act="shaft" data-i="${i}" data-ref="sh${i}Buy"></button>
       </div>
-      <div class="bar"><div style="width:${pct}%;background:linear-gradient(90deg,${ore.c}88,${ore.c})"></div></div>
+      <div class="bar"><div data-ref="sh${i}Bar" style="background:linear-gradient(90deg,${ore.c}88,${ore.c})"></div></div>
       <div class="mineworkers">${walkers}</div>
     </div>`;
   });
-
   // dig deeper
   if(mine.shafts.length<MAX_SHAFTS){
-    const dc=digCost(mine), nextOre=oreFor(mine.shafts.length);
-    html += `<div id="digbtn" class="${S.cash<dc?'cant':''}" data-act="dig">⛏️ Cavar mais fundo → ${nextOre.n} &nbsp;(${money(dc)})</div>`;
+    html += `<div id="digbtn" data-act="dig" data-ref="dig"></div>`;
   }else{
     html += `<div id="digbtn" data-act="map">🌍 Mina completa! Viaje para o próximo país →</div>`;
   }
-
   mineEl.innerHTML=html;
-  // header
-  $("#mineName") && ($("#mineName").textContent="");
+  UI.refs={};
+  mineEl.querySelectorAll("[data-ref]").forEach(el=>UI.refs[el.dataset.ref]=el);
+}
+
+function setBuy(btn,label,cost){
+  if(!btn) return;
+  btn.innerHTML=label+"<small>"+money(cost)+"</small>";
+  btn.classList.toggle("cant", S.cash<cost);
+}
+function updateMine(mine){
+  if(!UI||!UI.refs) return;
+  const r=UI.refs;
+  if(r.whAv) r.whAv.textContent=outfit(KEEPERS,mine.warehouse.lvl);
+  if(r.whLvl) r.whLvl.textContent="Nv "+mine.warehouse.lvl;
+  if(r.whSub) r.whSub.textContent="Vende "+money(warehouseRate(mine)*valueMult())+"/s";
+  setBuy(r.whBuy,"Melhorar",warehouseCost(mine));
+
+  if(r.elAv) r.elAv.textContent=outfit(LIFTERS,mine.elevator.lvl);
+  if(r.elLvl) r.elLvl.textContent="Nv "+mine.elevator.lvl;
+  if(r.elSub) r.elSub.textContent="Sobe "+money(elevatorRate(mine)*valueMult())+"/s • carga "+fmt(mine._wh||0);
+  setBuy(r.elBuy,"Melhorar",elevatorCost(mine));
+  if(r.cage){ const o=oreFor(mine.shafts[mine.shafts.length-1].depth); r.cage.style.background="linear-gradient("+o.c+","+o.c+"aa)"; }
+
+  mine.shafts.forEach((sh,i)=>{
+    const ore=oreFor(sh.depth), cap=shaftCap(mine,sh);
+    const lvl=r["sh"+i+"Lvl"], sub=r["sh"+i+"Sub"], buy=r["sh"+i+"Buy"], bar=r["sh"+i+"Bar"];
+    if(lvl) lvl.textContent="Nv "+sh.lvl;
+    if(sub) sub.textContent="Produz "+money(shaftProd(mine,sh)*valueMult())+"/s";
+    setBuy(buy,"Melhorar",shaftCost(mine,sh));
+    if(bar) bar.style.width=Math.min(100,(sh.ore/cap)*100)+"%";
+  });
+
+  if(r.dig){ const dc=digCost(mine), nx=oreFor(mine.shafts.length);
+    r.dig.innerHTML="⛏️ Cavar mais fundo → "+nx.n+" &nbsp;("+money(dc)+")";
+    r.dig.classList.toggle("cant", S.cash<dc); }
+
+  const mn=$("#mineName"); if(mn) mn.textContent=SEQ[S.current].flag+" "+SEQ[S.current].c+" • "+minerName(S.current);
+}
+
+// floating "+$" near the warehouse when money comes in
+function spawnFloat(){
+  const r=UI&&UI.refs; if(!r||!r.floats) return;
+  const gained=S.cash-lastFloatCash; lastFloatCash=S.cash;
+  if(gained<=0) return;
+  const el=document.createElement("div"); el.className="floatup"; el.textContent="+"+money(gained);
+  el.style.left=(18+Math.random()*58)+"%";
+  r.floats.appendChild(el);
+  setTimeout(()=>el.remove(),1150);
 }
 
 function renderHeader(){
@@ -547,7 +621,7 @@ function renderManagers(){
     html+=`<div class="card ${owned?'owned':''}">
       <div class="av">${m.e}</div>
       <div class="c-info">
-        <div class="c-name">${m.name} ${owned?'<span class="pin ok">CONTRATADO</span>':''}</div>
+        <div class="c-name">${mgrName(m.id)} <span class="edit" data-rename-mgr="${m.id}">✏️</span> ${owned?'<span class="pin ok">CONTRATADO</span>':''}</div>
         <div class="c-desc">${m.desc}</div>
       </div>
       ${owned?'':`<button class="mini ${can?'':'cant'}" data-hire="${m.id}">${money(m.cost)}</button>`}
@@ -570,12 +644,12 @@ function renderMap(){
       else if(unlocked) btn=`<button class="mini" data-travel="${seq}">Viajar</button>`;
       else if(nextToUnlock){ const c=mineUnlockCost(seq); btn=`<button class="mini ${S.cash>=c?'':'cant'}" data-travel="${seq}">🔓 ${money(c)}</button>`; }
       else btn=`<span class="pin locked">🔒</span>`;
-      const ore=oreFor(0);
+      const showName = unlocked||cur;
       html+=`<div class="country ${cur?'cur':''}">
         <div class="flag">${m.flag}</div>
         <div class="c-info">
           <div class="c-name">${m.c}</div>
-          <div class="c-desc">Mineiro: ${m.miner} • riqueza ×${fmt(mineBaseValue(seq))}</div>
+          <div class="c-desc">Mineiro: ${minerName(seq)} ${showName?`<span class="edit" data-rename-miner="${seq}">✏️</span>`:''} • riqueza ×${fmt(mineBaseValue(seq))}</div>
         </div>
         ${btn}
       </div>`;
@@ -615,8 +689,16 @@ mineEl.addEventListener("click",(e)=>{
 });
 document.querySelectorAll("[data-open]").forEach(el=>el.addEventListener("click",()=>{ Sfx.unlock(); openModal(el.dataset.open); }));
 document.querySelectorAll("[data-close]").forEach(el=>el.addEventListener("click",closeModals));
-$("#mgrList").addEventListener("click",(e)=>{const b=e.target.closest("[data-hire]"); if(b) hireManager(b.dataset.hire);});
-$("#mapList").addEventListener("click",(e)=>{const b=e.target.closest("[data-travel]"); if(b) travelTo(+b.dataset.travel);});
+$("#mgrList").addEventListener("click",(e)=>{
+  const ren=e.target.closest("[data-rename-mgr]");
+  if(ren){ const id=ren.dataset.renameMgr; const v=prompt("Nome do gerente:", mgrName(id)); if(v&&v.trim()){ S.names.mgr[id]=v.trim().slice(0,22); renderManagers(); save(); } return; }
+  const b=e.target.closest("[data-hire]"); if(b) hireManager(b.dataset.hire);
+});
+$("#mapList").addEventListener("click",(e)=>{
+  const ren=e.target.closest("[data-rename-miner]");
+  if(ren){ const seq=+ren.dataset.renameMiner; const v=prompt("Nome do mineiro:", minerName(seq)); if(v&&v.trim()){ S.names.miner[seq]=v.trim().slice(0,22); renderMap(); save(); } return; }
+  const b=e.target.closest("[data-travel]"); if(b) travelTo(+b.dataset.travel);
+});
 $("[data-reset]").addEventListener("click",()=>{
   if(confirm("Reiniciar TODO o progresso do zero?")){ localStorage.removeItem(SAVE_KEY); S=freshState(); closeModals(); renderAll(); toast("Jogo reiniciado!"); }
 });
@@ -658,8 +740,18 @@ function gameLoop(){
   tick(dt);
   requestAnimationFrame(gameLoop);
 }
-// periodic UI refresh (numbers/bars) — cheaper than every frame
-setInterval(()=>{ renderMine(); }, 250);
+// periodic UI refresh (numbers/bars) — cheaper than every frame, keeps CSS anims smooth
+setInterval(()=>{ renderMine(); }, 220);
+setInterval(spawnFloat, 750);
+
+// background photo loader (upload yours as assets/fundo.jpg)
+(function loadBg(){
+  const cands=["assets/fundo.jpg","assets/fundo.png","assets/fundo.jpeg","assets/Fundo.jpg","assets/background.jpg"];
+  let i=0; const img=new Image();
+  img.onload=()=>{ const bg=document.getElementById("bg"); if(bg) bg.style.backgroundImage="url('"+cands[i]+"')"; };
+  img.onerror=()=>{ i++; if(i<cands.length) img.src=cands[i]; };
+  img.src=cands[i];
+})();
 function headerLoop(){ renderHeader(); updateTurboUi(); requestAnimationFrame(headerLoop); }
 setInterval(save, 5000);
 window.addEventListener("beforeunload", save);
@@ -667,6 +759,7 @@ document.addEventListener("visibilitychange",()=>{ if(document.hidden) save(); }
 
 // ---------- boot ----------
 load();
+lastFloatCash=S.cash;
 const off=offlineEarnings();
 renderAll();
 requestAnimationFrame(gameLoop);
