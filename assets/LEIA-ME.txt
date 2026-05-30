@@ -1,0 +1,13 @@
+Coloque aqui a foto do Bento com o nome exato:
+
+    bento.jpg
+
+O jogo carrega automaticamente assets/bento.jpg como fundo de tela e
+aplica o tratamento estilo Minecraft (pixelizacao + posterizacao das
+cores + tom de ceu + vinheta).
+
+Se o arquivo nao existir, o jogo usa um ceu azul de Minecraft como fundo
+(fallback), entao o jogo funciona de qualquer jeito.
+
+Formatos aceitos: troque a extensao no index.html se usar .png/.jpeg.
+Dica: uma foto na vertical (retrato) fica melhor, pois a tela e vertical.
