@@ -744,6 +744,7 @@
 
   // ---- Input ----
   let pointerActive = false;
+  let boost = false; // turbo: speeds the balls up while the screen is held
   const keys = {};
 
   function canvasXFromClient(clientX) {
@@ -777,6 +778,7 @@
     const cy = canvasYFromClient(e.clientY);
     if (inMuteBox(cx, cy)) { SFX.toggleMute(); SFX.button(); return; }
     pointerActive = true;
+    boost = true; // hold to go turbo ⏩
     movePaddleTo(cx);
     if (state === STATE.PLAYING) launchBall();
   }, { passive: false });
@@ -787,17 +789,18 @@
     movePaddleTo(canvasXFromClient(e.clientX));
   }, { passive: false });
 
-  window.addEventListener("pointerup", () => { pointerActive = false; });
-  window.addEventListener("pointercancel", () => { pointerActive = false; });
+  window.addEventListener("pointerup", () => { pointerActive = false; boost = false; });
+  window.addEventListener("pointercancel", () => { pointerActive = false; boost = false; });
 
   window.addEventListener("keydown", (e) => {
     keys[e.key] = true;
     SFX.unlock();
     if (e.key === " " || e.key === "ArrowUp") { if (state === STATE.PLAYING) launchBall(); }
+    if (e.key === "ArrowDown") boost = true; // turbo on desktop
     if ((e.key === "Enter") && state === STATE.MENU) startGame();
     if (e.key === "m" || e.key === "M") { SFX.toggleMute(); SFX.button(); }
   });
-  window.addEventListener("keyup", (e) => { keys[e.key] = false; });
+  window.addEventListener("keyup", (e) => { keys[e.key] = false; if (e.key === "ArrowDown") boost = false; });
 
   // ---- Particles ----
   function spawnParticles(x, y, color, n) {
@@ -873,14 +876,17 @@
 
     if (state !== STATE.PLAYING) { updateParticles(); return; }
 
+    // turbo while the screen is held (does not change bounce speed)
+    const bf = boost ? 1.9 : 1;
+
     for (const ball of balls) {
       if (ball.stuck) { ball.x = paddle.x + paddle.w / 2; continue; }
 
       // move ball in small steps to avoid tunneling at high speed
-      const steps = Math.ceil(Math.hypot(ball.vx, ball.vy) / 4);
+      const steps = Math.ceil(Math.hypot(ball.vx, ball.vy) * bf / 4);
       for (let s = 0; s < steps; s++) {
-        ball.x += ball.vx / steps;
-        ball.y += ball.vy / steps;
+        ball.x += ball.vx * bf / steps;
+        ball.y += ball.vy * bf / steps;
 
         // walls
         if (ball.x - ball.r < FIELD_PAD) { ball.x = FIELD_PAD + ball.r; ball.vx = Math.abs(ball.vx); SFX.wall(); }
@@ -1029,6 +1035,18 @@
 
   function drawBalls() {
     for (const ball of balls) {
+      // motion trail while turbo is active ⏩
+      if (boost && !ball.stuck) {
+        const sp = Math.hypot(ball.vx, ball.vy) || 1;
+        for (let k = 1; k <= 3; k++) {
+          ctx.globalAlpha = 0.18 * (4 - k);
+          ctx.beginPath();
+          ctx.arc(ball.x - ball.vx / sp * k * 6, ball.y - ball.vy / sp * k * 6, ball.r * (1 - k * 0.12), 0, Math.PI * 2);
+          ctx.fillStyle = "#bfe3ff";
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
       // snowball: white with light shading
       ctx.beginPath();
       ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
@@ -1119,6 +1137,14 @@
       ctx.font = "bold 15px 'Courier New', monospace";
       ctx.fillStyle = "rgba(255,255,255,0.9)";
       ctx.fillText("Toque para soltar a bola 👆", BASE_W / 2, paddle.y - 40);
+    }
+
+    // turbo indicator
+    if (state === STATE.PLAYING && boost && !balls.some((b) => b.stuck)) {
+      ctx.textAlign = "center";
+      ctx.font = "bold 18px 'Courier New', monospace";
+      ctx.fillStyle = "rgba(255, 220, 90, 0.95)";
+      ctx.fillText("⏩ TURBO", BASE_W / 2, 52);
     }
   }
 
