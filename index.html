@@ -768,14 +768,14 @@ document.addEventListener("visibilitychange",()=>{ if(document.hidden) save(); }
 
 // ---------- asset loaders ----------
 (function loadBg(){
-  const cands=["assets/fundo.jpg","assets/fundo.png","assets/fundo.jpeg","assets/Fundo.jpg","assets/background.jpg"];
+  const cands=["assets/Foto.png","assets/foto.png","assets/Foto.jpg","assets/fundo.jpg","assets/fundo.png","assets/fundo.jpeg","assets/Fundo.jpg","assets/background.jpg"];
   let i=0; const img=new Image();
   img.onload=()=>{ const bg=document.getElementById("bg"); if(bg) bg.style.backgroundImage="url('"+cands[i]+"')"; };
   img.onerror=()=>{ i++; if(i<cands.length) img.src=cands[i]; };
   img.src=cands[i];
 })();
 (function loadFace(){
-  const cands=["assets/cara.jpg","assets/cara.png","assets/rosto.jpg","assets/face.jpg"];
+  const cands=["assets/cara.jpg","assets/cara.png","assets/rosto.jpg","assets/face.jpg","assets/Foto.png","assets/foto.png","assets/Foto.jpg"];
   let i=0; const img=new Image();
   img.onload=()=>{ hasFace=true; document.documentElement.style.setProperty('--face',"url('"+cands[i]+"')"); uiSig=null; renderMine(); };
   img.onerror=()=>{ i++; if(i<cands.length) img.src=cands[i]; };
